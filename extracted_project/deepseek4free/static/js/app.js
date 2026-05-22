@@ -48,6 +48,7 @@
     const addAccountForm  = document.getElementById('addAccountForm');
     const accNameInput    = document.getElementById('accNameInput');
     const accTokenInput   = document.getElementById('accTokenInput');
+    const accProxyInput   = document.getElementById('accProxyInput');
     const saveAccountBtn  = document.getElementById('saveAccountBtn');
 
     async function loadAccounts() {
@@ -79,11 +80,18 @@
                     <div class="account-item-name">
                         ${escapeHtml(acc.name)}
                         ${acc.active ? '<span class="account-active-badge">نشط</span>' : ''}
+                        ${acc.proxy ? '<span class="account-proxy-badge" title="${escapeHtml(acc.proxy)}">🔒 بروكسي</span>' : ''}
                     </div>
                     <div class="account-item-masked">${escapeHtml(acc.masked)}</div>
+                    ${acc.proxy ? `<div class="account-item-proxy" dir="ltr">${escapeHtml(acc.proxy)}</div>` : ''}
                 </div>
                 <div class="account-item-actions">
-                    <button class="acc-activate-btn" onclick="activateAccount('${acc.id}', '${escapeHtml(acc.name)}')">تفعيل</button>
+                    ${!acc.active ? `<button class="acc-activate-btn" onclick="activateAccount('${acc.id}', '${escapeHtml(acc.name)}')">تفعيل</button>` : ''}
+                    <button class="acc-proxy-btn" onclick="openProxyEditor('${acc.id}', '${escapeHtml(acc.proxy || '')}')" title="تعيين بروكسي">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                        </svg>
+                    </button>
                     <button class="acc-delete-btn" onclick="removeAccount('${acc.id}')" title="حذف">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <polyline points="3 6 5 6 21 6"/>
@@ -91,6 +99,18 @@
                             <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
                         </svg>
                     </button>
+                </div>
+            </div>
+            <div class="proxy-editor hidden" id="proxy-editor-${acc.id}">
+                <input type="text" class="token-input proxy-editor-input" id="proxy-input-${acc.id}"
+                    placeholder="http://host:port  أو  socks5://host:port"
+                    value="${escapeHtml(acc.proxy || '')}"
+                    dir="ltr" style="text-align:left; font-size:11px"
+                >
+                <div class="proxy-editor-actions">
+                    <button class="save-token-btn" style="font-size:11px; padding:4px 10px" onclick="saveProxy('${acc.id}')">حفظ</button>
+                    <button class="delete-token-btn" style="font-size:11px; padding:4px 10px" onclick="closeProxyEditor('${acc.id}')">إلغاء</button>
+                    ${acc.proxy ? `<button class="delete-token-btn" style="font-size:11px; padding:4px 10px; color:var(--error)" onclick="clearProxy('${acc.id}')">حذف البروكسي</button>` : ''}
                 </div>
             </div>
         `).join('');
@@ -128,9 +148,52 @@
         }
     };
 
+    window.openProxyEditor = function(id, currentProxy) {
+        document.querySelectorAll('.proxy-editor').forEach(el => el.classList.add('hidden'));
+        const editor = document.getElementById(`proxy-editor-${id}`);
+        if (editor) {
+            editor.classList.remove('hidden');
+            const inp = document.getElementById(`proxy-input-${id}`);
+            if (inp) { inp.value = currentProxy; inp.focus(); }
+        }
+    };
+
+    window.closeProxyEditor = function(id) {
+        const editor = document.getElementById(`proxy-editor-${id}`);
+        if (editor) editor.classList.add('hidden');
+    };
+
+    window.saveProxy = async function(id) {
+        const inp = document.getElementById(`proxy-input-${id}`);
+        const proxy = inp ? inp.value.trim() : '';
+        try {
+            const res = await fetch(`/dsk/accounts/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proxy }),
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                showAccountsResult(proxy ? '✅ تم حفظ البروكسي' : '✅ تم إزالة البروكسي', 'success');
+                await loadAccounts();
+            } else {
+                showAccountsResult('❌ ' + (data.error || 'فشل الحفظ'), 'error');
+            }
+        } catch {
+            showAccountsResult('❌ خطأ في الاتصال', 'error');
+        }
+    };
+
+    window.clearProxy = async function(id) {
+        const inp = document.getElementById(`proxy-input-${id}`);
+        if (inp) inp.value = '';
+        await window.saveProxy(id);
+    };
+
     saveAccountBtn.addEventListener('click', async () => {
         const name  = accNameInput.value.trim() || 'حساب جديد';
         const token = accTokenInput.value.trim();
+        const proxy = accProxyInput ? accProxyInput.value.trim() : '';
         if (!token) {
             showAccountsResult('يرجى إدخال التوكن', 'error');
             return;
@@ -141,7 +204,7 @@
             const res = await fetch('/dsk/accounts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, token }),
+                body: JSON.stringify({ name, token, proxy }),
             });
             const data = await res.json();
             if (res.ok && data.ok) {

@@ -1002,6 +1002,56 @@ body {
 
 .acc-delete-btn:hover { color: var(--error); background: rgba(239,68,68,0.1); }
 
+.account-proxy-badge {
+    font-size: 9px;
+    font-weight: 700;
+    background: rgba(34,197,94,0.15);
+    color: var(--success);
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+}
+
+.account-item-proxy {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--success);
+    opacity: 0.75;
+    margin-top: 2px;
+    word-break: break-all;
+}
+
+.acc-proxy-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 5px;
+    display: flex;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.acc-proxy-btn:hover { color: var(--success); background: rgba(34,197,94,0.1); }
+
+.proxy-editor {
+    background: var(--bg-tertiary);
+    border: 1px solid rgba(34,197,94,0.25);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    margin: 2px 4px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.proxy-editor-actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
 /* Add account form */
 .add-account-form {
     background: var(--bg-tertiary);

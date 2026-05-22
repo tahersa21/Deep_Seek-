@@ -69,6 +69,15 @@ def _get_active_token() -> str | None:
 _api_instances: dict[str, DeepSeekAPI] = {}
 
 
+def _get_active_account() -> dict | None:
+    cfg = _load_config()
+    active_id = cfg.get("active_id")
+    for acc in cfg.get("accounts", []):
+        if acc["id"] == active_id:
+            return acc
+    return None
+
+
 def get_api() -> DeepSeekAPI:
     cfg = _load_config()
     active_id = cfg.get("active_id")
@@ -76,9 +85,12 @@ def get_api() -> DeepSeekAPI:
     if not token:
         raise AuthenticationError("لم يتم تعيين حساب نشط بعد")
 
+    acc = _get_active_account()
+    proxy = acc.get("proxy") if acc else None
+
     key = active_id or "env"
     if key not in _api_instances:
-        _api_instances[key] = DeepSeekAPI(token)
+        _api_instances[key] = DeepSeekAPI(token, proxy=proxy)
     return _api_instances[key]
 
 
@@ -118,6 +130,7 @@ def list_accounts():
             "masked": _mask(acc["token"]),
             "active": acc["id"] == active_id,
             "created_at": acc.get("created_at", 0),
+            "proxy": acc.get("proxy") or "",
         })
     return {"accounts": result, "active_id": active_id}
 
@@ -127,12 +140,19 @@ def add_account():
     data = request.json or {}
     token = data.get("token", "").strip()
     name = data.get("name", "").strip() or "حساب جديد"
+    proxy_val = (data.get("proxy") or "").strip()
     if not token:
         return {"error": "التوكن مطلوب"}, 400
+    if proxy_val and not any(proxy_val.startswith(p) for p in ("http://", "https://", "socks5://", "socks4://")):
+        return {"error": "صيغة البروكسي غير صحيحة"}, 400
 
     cfg = _load_config()
     acc_id = secrets.token_hex(8)
-    new_acc = {"id": acc_id, "name": name, "token": token, "created_at": int(time.time())}
+    new_acc = {
+        "id": acc_id, "name": name, "token": token,
+        "created_at": int(time.time()),
+        "proxy": proxy_val if proxy_val else None,
+    }
     cfg["accounts"].append(new_acc)
 
     # Auto-activate if it's the first account or no active account
@@ -159,16 +179,28 @@ def add_account():
 
 
 @app.route("/dsk/accounts/<acc_id>", methods=["PATCH"])
-def rename_account(acc_id):
+def update_account(acc_id):
     data = request.json or {}
-    name = data.get("name", "").strip()
-    if not name:
-        return {"error": "الاسم مطلوب"}, 400
     cfg = _load_config()
     acc = next((a for a in cfg["accounts"] if a["id"] == acc_id), None)
     if not acc:
         return {"error": "الحساب غير موجود"}, 404
-    acc["name"] = name
+
+    if "name" in data:
+        name = data["name"].strip()
+        if not name:
+            return {"error": "الاسم مطلوب"}, 400
+        acc["name"] = name
+
+    if "proxy" in data:
+        proxy_val = (data["proxy"] or "").strip()
+        # Basic validation: must be empty or start with http/https/socks5
+        if proxy_val and not any(proxy_val.startswith(p) for p in ("http://", "https://", "socks5://", "socks4://")):
+            return {"error": "صيغة البروكسي غير صحيحة (مثال: http://host:port أو socks5://host:port)"}, 400
+        acc["proxy"] = proxy_val if proxy_val else None
+        # Reset cached API instance so next request picks up the new proxy
+        reset_api(acc_id)
+
     _save_config(cfg)
     return {"ok": True}
 

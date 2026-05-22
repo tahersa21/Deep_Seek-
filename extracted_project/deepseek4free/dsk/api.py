@@ -40,11 +40,12 @@ class APIError(DeepSeekError):
 class DeepSeekAPI:
     BASE_URL = "https://chat.deepseek.com/api/v0"
 
-    def __init__(self, auth_token: str):
+    def __init__(self, auth_token: str, proxy: Optional[str] = None):
         if not auth_token or not isinstance(auth_token, str):
             raise AuthenticationError("Invalid auth token provided")
 
         self.auth_token = auth_token
+        self.proxy: Optional[str] = proxy or None  # e.g. "http://host:port" or "socks5://host:port"
 
         from .pow import DeepSeekPOW
         self.pow_solver = DeepSeekPOW()
@@ -195,16 +196,19 @@ class DeepSeekAPI:
 
     def _make_request(self, method: str, endpoint: str, json_data: Dict[str, Any]) -> Any:
         url = f"{self.BASE_URL}{endpoint}"
+        kwargs: Dict[str, Any] = dict(
+            method=method,
+            url=url,
+            headers=self._get_headers(),
+            json=json_data,
+            cookies=self.cookies,
+            impersonate='chrome120',
+            timeout=30,
+        )
+        if self.proxy:
+            kwargs['proxy'] = self.proxy
         try:
-            response = requests.request(
-                method=method,
-                url=url,
-                headers=self._get_headers(),
-                json=json_data,
-                cookies=self.cookies,
-                impersonate='chrome120',
-                timeout=30,
-            )
+            response = requests.request(**kwargs)
             if response.status_code == 401:
                 raise AuthenticationError("Invalid or expired authentication token")
             if response.status_code == 429:
@@ -271,15 +275,20 @@ class DeepSeekAPI:
             'search_enabled': search_enabled,
         }
 
+        stream_kwargs: Dict[str, Any] = dict(
+            headers=headers,
+            json=json_data,
+            cookies=self.cookies,
+            impersonate='chrome120',
+            stream=True,
+            timeout=None,
+        )
+        if self.proxy:
+            stream_kwargs['proxy'] = self.proxy
         try:
             response = requests.post(
                 f"{self.BASE_URL}/chat/completion",
-                headers=headers,
-                json=json_data,
-                cookies=self.cookies,
-                impersonate='chrome120',
-                stream=True,
-                timeout=None,
+                **stream_kwargs,
             )
         except requests.exceptions.RequestException as e:
             raise NetworkError(f"Network error during streaming: {e}")
