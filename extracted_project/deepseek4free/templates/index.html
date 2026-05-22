@@ -3,373 +3,327 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeepSeek4Free — محادثة الذكاء الاصطناعي</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=6">
+    <title>DeepSeek4Free — لوحة التحكم</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=7">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="app-layout">
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <div class="logo">
-                    <svg width="28" height="28" viewBox="0 0 100 100" fill="none">
-                        <circle cx="50" cy="50" r="45" fill="url(#grad)"/>
-                        <path d="M30 65 Q50 25 70 65" stroke="white" stroke-width="6" stroke-linecap="round" fill="none"/>
-                        <circle cx="35" cy="58" r="5" fill="white"/>
-                        <circle cx="65" cy="58" r="5" fill="white"/>
-                        <defs>
-                            <linearGradient id="grad" x1="0" y1="0" x2="100" y2="100">
-                                <stop offset="0%" stop-color="#4f6ef7"/>
-                                <stop offset="100%" stop-color="#7c3aed"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
-                    <span class="logo-text">DeepSeek4Free</span>
+<div class="dash-layout">
+
+    <!-- ═══════════════ HEADER ═══════════════ -->
+    <header class="dash-header">
+        <div class="dash-logo">
+            <svg width="26" height="26" viewBox="0 0 100 100" fill="none">
+                <circle cx="50" cy="50" r="45" fill="url(#hgrad)"/>
+                <path d="M30 65 Q50 25 70 65" stroke="white" stroke-width="6" stroke-linecap="round" fill="none"/>
+                <circle cx="35" cy="58" r="5" fill="white"/>
+                <circle cx="65" cy="58" r="5" fill="white"/>
+                <defs>
+                    <linearGradient id="hgrad" x1="0" y1="0" x2="100" y2="100">
+                        <stop offset="0%" stop-color="#4f6ef7"/>
+                        <stop offset="100%" stop-color="#7c3aed"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <span>DeepSeek4Free</span>
+        </div>
+
+        <nav class="dash-nav">
+            <button class="dash-nav-tab active" data-tab="accounts">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                الحسابات
+            </button>
+            <button class="dash-nav-tab" data-tab="balancer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                موازن الحمل
+                <span class="balancer-badge" id="balancerBadge"></span>
+            </button>
+            <button class="dash-nav-tab" data-tab="api">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="7" width="20" height="14" rx="2"/>
+                    <path d="M16 3h-8l-1 4h10l-1-4z"/>
+                </svg>
+                مفاتيح API
+            </button>
+            <button class="dash-nav-tab" data-tab="test">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 11 12 14 22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+                اختبار الاتصال
+            </button>
+        </nav>
+
+        <div class="dash-header-status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">جارٍ الاتصال...</span>
+        </div>
+    </header>
+
+    <!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+    <main class="dash-main">
+
+        <!-- ──────── TAB: ACCOUNTS ──────── -->
+        <section class="dash-panel" id="panel-accounts">
+            <div class="panel-top-bar">
+                <div>
+                    <h2 class="panel-title">إدارة الحسابات</h2>
+                    <p class="panel-sub">أضف حسابات DeepSeek لاستخدامها مع موازن الحمل والـ API</p>
                 </div>
-            </div>
-
-            <!-- Sidebar Tabs -->
-            <div class="sidebar-tabs">
-                <button class="sidebar-tab active" data-tab="chat" title="الدردشة">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    دردشة
-                </button>
-                <button class="sidebar-tab" data-tab="api" title="مفاتيح API">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="2" y="7" width="20" height="14" rx="2"/>
-                        <path d="M16 3h-8l-1 4h10l-1-4z"/>
-                    </svg>
-                    API
-                </button>
-                <button class="sidebar-tab" data-tab="settings" id="settingsTab" title="إعدادات الحسابات">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                    </svg>
-                    حسابات
-                </button>
-            </div>
-
-            <!-- Tab: Chat -->
-            <div class="sidebar-panel" id="panel-chat">
-                <button class="new-chat-btn" id="newChatBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <button class="btn-primary" onclick="toggleAddForm()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
-                    محادثة جديدة
+                    إضافة حساب
                 </button>
-
-                <div class="sidebar-section">
-                    <p class="sidebar-label">الإعدادات</p>
-
-                    <label class="toggle-row">
-                        <span class="toggle-icon">🤔</span>
-                        <span class="toggle-text">وضع التفكير</span>
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="thinkingToggle">
-                            <span class="slider"></span>
-                        </div>
-                    </label>
-
-                    <label class="toggle-row">
-                        <span class="toggle-icon">🔍</span>
-                        <span class="toggle-text">بحث الويب</span>
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="searchToggle">
-                            <span class="slider"></span>
-                        </div>
-                    </label>
-                </div>
             </div>
 
-            <!-- Tab: API Keys -->
-            <div class="sidebar-panel hidden" id="panel-api">
-                <div class="api-panel">
-                    <p class="sidebar-label">مفاتيح API</p>
-                    <p class="api-desc">أنشئ مفتاحاً واستخدمه في n8n أو أي تطبيق يدعم OpenAI API.</p>
+            <div class="accounts-result hidden" id="accountsResult"></div>
 
-                    <div class="api-endpoint-box">
-                        <span class="api-endpoint-label">Base URL</span>
-                        <div class="api-endpoint-row">
-                            <code id="baseUrlText" class="api-endpoint-value"></code>
-                            <button class="copy-btn-sm" onclick="copyBaseUrl()" title="نسخ">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="api-new-row">
-                        <input type="text" id="keyNameInput" class="key-name-input" placeholder="اسم المفتاح (اختياري)">
-                        <button class="gen-key-btn" id="genKeyBtn">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
-                            </svg>
-                            إنشاء
-                        </button>
-                    </div>
-
-                    <!-- New key reveal -->
-                    <div class="new-key-reveal hidden" id="newKeyReveal">
-                        <div class="new-key-header">
-                            <span class="new-key-icon">🔑</span>
-                            <span>احفظ المفتاح الآن — لن يظهر مجدداً</span>
-                        </div>
-                        <div class="new-key-value-row">
-                            <code id="newKeyValue" class="new-key-value"></code>
-                            <button class="copy-btn-sm" id="copyNewKeyBtn" title="نسخ">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Keys list -->
-                    <div class="keys-list" id="keysList">
-                        <div class="keys-empty">لا توجد مفاتيح بعد</div>
-                    </div>
-
-                    <!-- Usage guide -->
-                    <div class="api-usage-guide">
-                        <p class="sidebar-label" style="margin-top:12px">كيفية الاستخدام في n8n</p>
-                        <div class="usage-steps">
-                            <div class="usage-step">
-                                <span class="step-num">١</span>
-                                <span>أضف node من نوع <strong>HTTP Request</strong></span>
-                            </div>
-                            <div class="usage-step">
-                                <span class="step-num">٢</span>
-                                <span>Method: <code>POST</code> — URL: Base URL أعلاه</span>
-                            </div>
-                            <div class="usage-step">
-                                <span class="step-num">٣</span>
-                                <span>Header: <code>Authorization: Bearer sk-...</code></span>
-                            </div>
-                            <div class="usage-step">
-                                <span class="step-num">٤</span>
-                                <span>Body (JSON): <code>{"model":"deepseek-reasoner","messages":[...]}</code></span>
-                            </div>
-                        </div>
-                    </div>
+            <!-- Add account form -->
+            <div class="add-account-card hidden" id="addAccountForm">
+                <div class="add-account-card-header">
+                    <span class="add-account-card-title">حساب جديد</span>
+                    <button class="icon-btn" onclick="toggleAddForm()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
                 </div>
-            </div>
-
-            <!-- Tab: Settings -->
-            <div class="sidebar-panel hidden" id="panel-settings">
-                <div class="settings-panel">
-
-                    <!-- Accounts list -->
-                    <div class="accounts-header">
-                        <p class="sidebar-label" style="margin:0">الحسابات</p>
-                        <button class="add-account-toggle-btn" id="addAccountToggleBtn" onclick="toggleAddForm()">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                            </svg>
-                            إضافة حساب
-                        </button>
+                <div class="add-account-card-body">
+                    <div class="form-group">
+                        <label class="form-label">اسم الحساب</label>
+                        <input type="text" id="accNameInput" class="form-input" placeholder="مثال: حسابي الشخصي" maxlength="40">
                     </div>
-
-                    <div class="accounts-list" id="accountsList">
-                        <div class="accounts-empty">لا توجد حسابات بعد</div>
-                    </div>
-
-                    <div class="accounts-result hidden" id="accountsResult"></div>
-
-                    <!-- Add account form (collapsible) -->
-                    <div class="add-account-form hidden" id="addAccountForm">
-                        <p class="sidebar-label" style="margin-top:0">إضافة حساب جديد</p>
-
-                        <input
-                            type="text"
-                            id="accNameInput"
-                            class="token-input acc-name-input"
-                            placeholder="اسم الحساب (مثال: حسابي الشخصي)"
-                            maxlength="40"
-                        >
-
-                        <div class="token-hint-code" style="margin-top:4px">
-                            <code>JSON.parse(localStorage.getItem('userToken')).value</code>
-                            <button class="copy-btn-sm" onclick="copyTokenHint()" title="نسخ">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <div class="form-group">
+                        <label class="form-label">
+                            التوكن
+                            <button class="hint-copy-btn" onclick="copyTokenHint()" title="نسخ الأمر">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                نسخ الأمر
                             </button>
-                        </div>
-
-                        <div class="token-input-row" style="margin-top:4px">
-                            <input
-                                type="password"
-                                id="accTokenInput"
-                                class="token-input"
-                                placeholder="الصق التوكن هنا..."
-                                autocomplete="off"
-                                spellcheck="false"
-                            >
-                            <button class="token-eye-btn" onclick="toggleAccTokenVisibility()" title="إظهار/إخفاء">
-                                <svg id="accEyeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        </label>
+                        <div class="form-input-row">
+                            <input type="password" id="accTokenInput" class="form-input" placeholder="الصق التوكن هنا..." autocomplete="off" spellcheck="false">
+                            <button class="icon-btn" onclick="toggleAccTokenVisibility()" title="إظهار/إخفاء">
+                                <svg id="accEyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                     <circle cx="12" cy="12" r="3"/>
                                 </svg>
                             </button>
                         </div>
-
-                        <input
-                            type="text"
-                            id="accProxyInput"
-                            class="token-input"
-                            placeholder="بروكسي (اختياري): http://host:port أو socks5://host:port"
-                            autocomplete="off"
-                            spellcheck="false"
-                            style="margin-top:4px; font-size:11px; direction:ltr; text-align:left"
-                        >
-
-                        <div class="token-actions" style="margin-top:6px">
-                            <button class="save-token-btn" id="saveAccountBtn">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <polyline points="20 6 9 17 4 12"/>
-                                </svg>
-                                حفظ الحساب
-                            </button>
-                            <button class="delete-token-btn" onclick="toggleAddForm()">
-                                إلغاء
-                            </button>
-                        </div>
+                        <p class="form-hint">
+                            <code>JSON.parse(localStorage.getItem('userToken')).value</code>
+                            — شغّل هذا في Console على chat.deepseek.com
+                        </p>
                     </div>
-
-                    <!-- Load-balancer panel -->
-                    <div class="balancer-section" id="balancerSection">
-                        <div class="balancer-header">
-                            <p class="sidebar-label" style="margin:0">موازن الحمل <span class="balancer-badge" id="balancerBadge"></span></p>
-                            <div style="display:flex;gap:4px">
-                                <button class="balancer-refresh-btn" onclick="loadBalancer()" title="تحديث">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                                </button>
-                                <button class="balancer-reset-all-btn" onclick="resetAllBalancer()" title="إعادة تشغيل الكل">إعادة الكل</button>
-                            </div>
-                        </div>
-                        <div class="balancer-list" id="balancerList">
-                            <div class="balancer-empty">لا توجد حسابات</div>
-                        </div>
+                    <div class="form-group">
+                        <label class="form-label">بروكسي <span class="form-optional">(اختياري)</span></label>
+                        <input type="text" id="accProxyInput" class="form-input ltr" placeholder="http://host:port  أو  socks5://host:port" autocomplete="off" spellcheck="false">
                     </div>
-
-                    <!-- How to get token guide -->
-                    <div class="token-guide">
-                        <p class="sidebar-label" style="margin-top:4px">كيف تحصل على التوكن؟</p>
-                        <div class="usage-steps">
-                            <div class="usage-step">
-                                <span class="step-num">١</span>
-                                <span>افتح <strong>chat.deepseek.com</strong> وسجّل الدخول</span>
-                            </div>
-                            <div class="usage-step">
-                                <span class="step-num">٢</span>
-                                <span>اضغط <code>F12</code> ← تبويب <code>Console</code></span>
-                            </div>
-                            <div class="usage-step">
-                                <span class="step-num">٣</span>
-                                <span>الصق الأمر أعلاه واضغط Enter</span>
-                            </div>
-                            <div class="usage-step">
-                                <span class="step-num">٤</span>
-                                <span>انسخ الناتج والصقه في حقل التوكن</span>
-                            </div>
-                        </div>
+                    <div class="form-actions">
+                        <button class="btn-primary" id="saveAccountBtn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            حفظ الحساب
+                        </button>
+                        <button class="btn-ghost" onclick="toggleAddForm()">إلغاء</button>
                     </div>
                 </div>
             </div>
 
-            <div class="sidebar-footer">
-                <div class="model-badge">
-                    <span class="model-dot" id="modelDot"></span>
-                    <span id="modelStatus">DeepSeek R1</span>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Main Chat Area -->
-        <main class="chat-main">
-            <header class="chat-header">
-                <button class="sidebar-toggle" id="sidebarToggle">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            <!-- Accounts list -->
+            <div class="accounts-list" id="accountsList">
+                <div class="empty-state">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
                     </svg>
-                </button>
-                <span class="header-title">محادثة ذكية</span>
-                <div class="header-status" id="headerStatus">
-                    <span class="status-dot" id="statusDot"></span>
-                    <span id="statusText">جارٍ الاتصال...</span>
+                    <p>لا توجد حسابات — اضغط "إضافة حساب" للبدء</p>
                 </div>
-            </header>
-
-            <!-- No token banner -->
-            <div class="no-token-banner hidden" id="noTokenBanner">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <span>لم يتم ضبط توكن DeepSeek بعد.</span>
-                <button onclick="openSettingsTab()">أضفه من الإعدادات</button>
             </div>
 
-            <div class="chat-messages" id="chatMessages">
-                <div class="welcome-screen" id="welcomeScreen">
-                    <div class="welcome-icon">
-                        <svg width="56" height="56" viewBox="0 0 100 100" fill="none">
-                            <circle cx="50" cy="50" r="45" fill="url(#grad2)"/>
+            <!-- Token guide -->
+            <div class="info-card" style="margin-top:16px">
+                <p class="info-card-title">كيف تحصل على التوكن؟</p>
+                <div class="steps-row">
+                    <div class="step-badge">١</div><span>افتح <strong>chat.deepseek.com</strong> وسجّل الدخول</span>
+                </div>
+                <div class="steps-row">
+                    <div class="step-badge">٢</div><span>اضغط <code>F12</code> ← تبويب <code>Console</code></span>
+                </div>
+                <div class="steps-row">
+                    <div class="step-badge">٣</div><span>الصق: <code>JSON.parse(localStorage.getItem('userToken')).value</code></span>
+                </div>
+                <div class="steps-row">
+                    <div class="step-badge">٤</div><span>انسخ النتيجة وألصقها في حقل التوكن أعلاه</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ──────── TAB: LOAD BALANCER ──────── -->
+        <section class="dash-panel hidden" id="panel-balancer">
+            <div class="panel-top-bar">
+                <div>
+                    <h2 class="panel-title">موازن الحمل</h2>
+                    <p class="panel-sub">يوزّع طلبات /v1/chat/completions على الحسابات بشكل دوري — الحسابات الفاشلة تُعزل تلقائياً 5 دقائق</p>
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button class="btn-ghost" onclick="loadBalancer()">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        تحديث
+                    </button>
+                    <button class="btn-ghost" onclick="resetAllBalancer()">إعادة تشغيل الكل</button>
+                </div>
+            </div>
+
+            <div class="balancer-stats-row" id="balancerStatsRow"></div>
+
+            <div class="balancer-cards" id="balancerList">
+                <div class="empty-state">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    <p>أضف حسابات لتفعيل موازن الحمل</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ──────── TAB: API KEYS ──────── -->
+        <section class="dash-panel hidden" id="panel-api">
+            <div class="panel-top-bar">
+                <div>
+                    <h2 class="panel-title">مفاتيح API</h2>
+                    <p class="panel-sub">أنشئ مفاتيح لاستخدام هذا السيرفر في n8n أو أي تطبيق يدعم OpenAI API</p>
+                </div>
+            </div>
+
+            <div class="api-setup-grid">
+                <div class="api-setup-card">
+                    <p class="api-setup-label">Base URL</p>
+                    <div class="api-url-row">
+                        <code id="baseUrlText" class="api-url-code"></code>
+                        <button class="icon-btn" onclick="copyBaseUrl()" title="نسخ">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </button>
+                    </div>
+                    <p class="api-setup-label" style="margin-top:12px">إنشاء مفتاح جديد</p>
+                    <div class="api-new-row">
+                        <input type="text" id="keyNameInput" class="form-input" placeholder="اسم المفتاح (اختياري)" style="flex:1">
+                        <button class="btn-primary" id="genKeyBtn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+                            إنشاء
+                        </button>
+                    </div>
+
+                    <div class="new-key-reveal hidden" id="newKeyReveal">
+                        <div class="new-key-header">
+                            <span>🔑</span><span>احفظ المفتاح الآن — لن يظهر مجدداً</span>
+                        </div>
+                        <div class="new-key-value-row">
+                            <code id="newKeyValue" class="new-key-value"></code>
+                            <button class="icon-btn" id="copyNewKeyBtn" title="نسخ">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="api-setup-card" style="flex:1.5">
+                    <p class="api-setup-label">كيفية الاستخدام في n8n</p>
+                    <div class="steps-row"><div class="step-badge">١</div><span>أضف node من نوع <strong>HTTP Request</strong></span></div>
+                    <div class="steps-row"><div class="step-badge">٢</div><span>Method: <code>POST</code> — URL: Base URL أعلاه</span></div>
+                    <div class="steps-row"><div class="step-badge">٣</div><span>Header: <code>Authorization: Bearer sk-...</code></span></div>
+                    <div class="steps-row"><div class="step-badge">٤</div><span>Body (JSON): <code>{"model":"deepseek-chat","messages":[...]}</code></span></div>
+                </div>
+            </div>
+
+            <div class="keys-list" id="keysList">
+                <div class="empty-state"><p>لا توجد مفاتيح بعد — أنشئ مفتاحاً أعلاه</p></div>
+            </div>
+        </section>
+
+        <!-- ──────── TAB: TEST CHAT ──────── -->
+        <section class="dash-panel hidden" id="panel-test">
+            <div class="panel-top-bar">
+                <div>
+                    <h2 class="panel-title">اختبار الاتصال</h2>
+                    <p class="panel-sub">أرسل رسالة للتحقق من أن الحساب النشط يعمل بشكل صحيح</p>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <label class="toggle-pill">
+                        <input type="checkbox" id="thinkingToggle">
+                        <span class="toggle-pill-slider"></span>
+                        <span>تفكير</span>
+                    </label>
+                    <label class="toggle-pill">
+                        <input type="checkbox" id="searchToggle">
+                        <span class="toggle-pill-slider"></span>
+                        <span>بحث</span>
+                    </label>
+                    <button class="btn-ghost" id="newChatBtn">محادثة جديدة</button>
+                </div>
+            </div>
+
+            <div class="no-token-banner hidden" id="noTokenBanner">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                لا يوجد حساب نشط —
+                <button onclick="switchTab('accounts')">أضف حساباً</button>
+            </div>
+
+            <div class="test-chat-wrap">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="test-welcome" id="welcomeScreen">
+                        <svg width="36" height="36" viewBox="0 0 100 100" fill="none" opacity="0.5">
+                            <circle cx="50" cy="50" r="45" fill="url(#tgrad)"/>
                             <path d="M30 65 Q50 25 70 65" stroke="white" stroke-width="6" stroke-linecap="round" fill="none"/>
                             <circle cx="35" cy="58" r="5" fill="white"/>
                             <circle cx="65" cy="58" r="5" fill="white"/>
                             <defs>
-                                <linearGradient id="grad2" x1="0" y1="0" x2="100" y2="100">
+                                <linearGradient id="tgrad" x1="0" y1="0" x2="100" y2="100">
                                     <stop offset="0%" stop-color="#4f6ef7"/>
                                     <stop offset="100%" stop-color="#7c3aed"/>
                                 </linearGradient>
                             </defs>
                         </svg>
-                    </div>
-                    <h1 class="welcome-title">مرحباً بك في DeepSeek4Free</h1>
-                    <p class="welcome-sub">اسألني أي شيء — أنا هنا للمساعدة</p>
-                    <div class="suggestion-grid">
-                        <button class="suggestion-card" data-prompt="اشرح لي كيف يعمل الذكاء الاصطناعي بطريقة مبسطة">
-                            <span class="suggestion-icon">🤖</span>
-                            <span>اشرح الذكاء الاصطناعي</span>
-                        </button>
-                        <button class="suggestion-card" data-prompt="اكتب لي كود Python لحل معادلة تربيعية">
-                            <span class="suggestion-icon">💻</span>
-                            <span>اكتب كود Python</span>
-                        </button>
-                        <button class="suggestion-card" data-prompt="ما هي أفضل الممارسات في تطوير تطبيقات الويب؟">
-                            <span class="suggestion-icon">🌐</span>
-                            <span>تطوير الويب</span>
-                        </button>
-                        <button class="suggestion-card" data-prompt="ساعدني في كتابة رسالة احترافية بالعربي">
-                            <span class="suggestion-icon">✍️</span>
-                            <span>كتابة احترافية</span>
-                        </button>
+                        <p>أرسل رسالة للتحقق من الاتصال بـ DeepSeek</p>
+                        <div class="test-suggestions">
+                            <button class="test-sugg-btn" data-prompt="قل مرحباً باختصار">قل مرحباً</button>
+                            <button class="test-sugg-btn" data-prompt="ما هو 2+2؟">2+2=؟</button>
+                            <button class="test-sugg-btn" data-prompt="اكتب كلمة واحدة فقط">كلمة واحدة</button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="chat-input-wrapper">
-                <div class="input-container">
-                    <textarea
-                        id="messageInput"
-                        class="message-input"
-                        placeholder="اكتب رسالتك هنا..."
-                        rows="1"
-                        dir="auto"
-                    ></textarea>
+                <div class="test-input-bar">
+                    <textarea id="messageInput" class="test-textarea" placeholder="اكتب رسالة اختبار..." rows="1" dir="auto"></textarea>
                     <button class="send-btn" id="sendBtn" disabled>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <line x1="22" y1="2" x2="11" y2="13"/>
-                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
                         </svg>
                     </button>
                 </div>
-                <p class="input-hint">اضغط Enter للإرسال • Shift+Enter لسطر جديد</p>
+                <p class="input-hint">Enter للإرسال • Shift+Enter لسطر جديد</p>
             </div>
-        </main>
+        </section>
+
+    </main>
+
+    <!-- Model badge footer -->
+    <div class="dash-footer">
+        <span class="model-dot" id="modelDot"></span>
+        <span id="modelStatus">DeepSeek R1</span>
     </div>
 
-    <div class="toast" id="toast"></div>
+</div>
 
-    <script src="/static/js/app.js"></script>
+<div class="toast" id="toast"></div>
+<script src="/static/js/app.js"></script>
 </body>
 </html>
