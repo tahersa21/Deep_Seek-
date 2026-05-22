@@ -2,6 +2,7 @@ import os
 import json
 import secrets
 import time
+import threading
 from flask import Flask, render_template, request, Response, stream_with_context
 from dotenv import load_dotenv
 from dsk.api import (
@@ -100,6 +101,137 @@ def reset_api(account_id: str | None = None) -> None:
         _api_instances.pop(account_id, None)
     else:
         _api_instances.clear()
+
+
+# --------------------------------------------------------------------------- #
+# Round-Robin Load Balancer                                                    #
+# --------------------------------------------------------------------------- #
+
+class AccountRotator:
+    """
+    Distributes /v1/chat/completions requests across all accounts in round-robin
+    order.  Unhealthy accounts (auth errors, rate-limits, Cloudflare blocks) are
+    quarantined for RECOVERY_TIMEOUT seconds before being retried automatically.
+    """
+    RECOVERY_TIMEOUT = 300  # seconds (5 minutes)
+
+    def __init__(self):
+        self._lock  = threading.Lock()
+        self._index = 0          # round-robin pointer into the healthy list
+        # {acc_id: {healthy, failed_at, error, requests, successes, failures}}
+        self._health: dict[str, dict] = {}
+
+    # ---------------------------------------------------------------------- #
+
+    def _init_health(self, acc_id: str) -> None:
+        if acc_id not in self._health:
+            self._health[acc_id] = {
+                "healthy": True, "failed_at": None, "error": None,
+                "requests": 0, "successes": 0, "failures": 0,
+            }
+
+    def _maybe_recover(self, accounts: list) -> None:
+        """Auto-recover accounts whose quarantine period has elapsed."""
+        now = time.time()
+        for acc in accounts:
+            h = self._health.get(acc["id"], {})
+            if not h.get("healthy") and h.get("failed_at"):
+                if now - h["failed_at"] >= self.RECOVERY_TIMEOUT:
+                    self._health[acc["id"]].update(
+                        healthy=True, failed_at=None, error=None
+                    )
+                    reset_api(acc["id"])
+
+    # ---------------------------------------------------------------------- #
+
+    def get_next(self) -> tuple["DeepSeekAPI", str]:
+        """Pick the next healthy account (round-robin) and return (api, acc_id)."""
+        with self._lock:
+            accounts = _load_config().get("accounts", [])
+            if not accounts:
+                raise AuthenticationError("لا توجد حسابات — أضف حساباً أولاً")
+
+            for acc in accounts:
+                self._init_health(acc["id"])
+
+            self._maybe_recover(accounts)
+
+            healthy = [a for a in accounts if self._health[a["id"]]["healthy"]]
+            if not healthy:
+                # All quarantined — reset all as last resort
+                for acc in accounts:
+                    self._health[acc["id"]].update(healthy=True, failed_at=None, error=None)
+                    reset_api(acc["id"])
+                healthy = accounts
+
+            # Clamp index then advance
+            self._index = self._index % len(healthy)
+            acc = healthy[self._index]
+            self._index = (self._index + 1) % len(healthy)
+
+            acc_id = acc["id"]
+            self._health[acc_id]["requests"] += 1
+
+            if acc_id not in _api_instances:
+                _api_instances[acc_id] = DeepSeekAPI(acc["token"], proxy=acc.get("proxy"))
+
+            return _api_instances[acc_id], acc_id
+
+    def mark_success(self, acc_id: str) -> None:
+        with self._lock:
+            if acc_id in self._health:
+                self._health[acc_id]["successes"] += 1
+
+    def mark_failure(self, acc_id: str, error: str) -> None:
+        with self._lock:
+            if acc_id not in self._health:
+                self._health[acc_id] = {
+                    "healthy": True, "failed_at": None, "error": None,
+                    "requests": 0, "successes": 0, "failures": 0,
+                }
+            self._health[acc_id]["failures"] += 1
+            self._health[acc_id]["healthy"]   = False
+            self._health[acc_id]["failed_at"] = time.time()
+            self._health[acc_id]["error"]     = error
+            reset_api(acc_id)
+
+    def reset_account(self, acc_id: str) -> None:
+        with self._lock:
+            if acc_id in self._health:
+                self._health[acc_id].update(healthy=True, failed_at=None, error=None)
+            reset_api(acc_id)
+
+    def get_status(self) -> list[dict]:
+        accounts = _load_config().get("accounts", [])
+        now = time.time()
+        result = []
+        for acc in accounts:
+            h = self._health.get(acc["id"], {
+                "healthy": True, "failed_at": None, "error": None,
+                "requests": 0, "successes": 0, "failures": 0,
+            })
+            failed_at = h.get("failed_at")
+            recovery_in = None
+            if failed_at and not h.get("healthy"):
+                remaining = self.RECOVERY_TIMEOUT - (now - failed_at)
+                recovery_in = max(0, int(remaining))
+            result.append({
+                "id":          acc["id"],
+                "name":        acc["name"],
+                "proxy":       acc.get("proxy") or "",
+                "healthy":     h.get("healthy", True),
+                "failed_at":   failed_at,
+                "error":       h.get("error"),
+                "requests":    h.get("requests", 0),
+                "successes":   h.get("successes", 0),
+                "failures":    h.get("failures", 0),
+                "recovery_in": recovery_in,
+            })
+        return result
+
+
+# Global rotator instance
+rotator = AccountRotator()
 
 
 try:
@@ -348,6 +480,11 @@ def _messages_to_prompt(messages: list) -> str:
     return "\n\n".join(parts)
 
 
+def _is_fatal_error(exc: Exception) -> bool:
+    """Return True if the error means the account should be quarantined."""
+    return isinstance(exc, (AuthenticationError, RateLimitError, CloudflareError))
+
+
 @app.route("/v1/chat/completions", methods=["POST"])
 def openai_chat():
     ok, info = _check_api_key(request)
@@ -367,9 +504,10 @@ def openai_chat():
     completion_id = "chatcmpl-" + secrets.token_hex(12)
     created = int(time.time())
 
+    # ── Pick next account via round-robin ────────────────────────────────── #
     try:
-        api = get_api()
-        session_id = api.create_chat_session()
+        api, acc_id = rotator.get_next()
+        session_id  = api.create_chat_session()
     except Exception as e:
         return {"error": {"message": str(e), "type": "server_error"}}, 500
 
@@ -407,8 +545,11 @@ def openai_chat():
                 }
                 yield f"data: {json.dumps(finish_payload)}\n\n"
                 yield "data: [DONE]\n\n"
+                rotator.mark_success(acc_id)
 
             except Exception as e:
+                if _is_fatal_error(e):
+                    rotator.mark_failure(acc_id, str(e))
                 err = {"error": {"message": str(e), "type": "server_error"}}
                 yield f"data: {json.dumps(err)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -425,7 +566,10 @@ def openai_chat():
             for chunk in api.chat_completion(session_id, prompt, thinking_enabled=thinking_enabled):
                 if chunk.get("type") == "text":
                     full_text += chunk.get("content", "")
+            rotator.mark_success(acc_id)
         except Exception as e:
+            if _is_fatal_error(e):
+                rotator.mark_failure(acc_id, str(e))
             return {"error": {"message": str(e), "type": "server_error"}}, 500
 
         return {
@@ -436,6 +580,29 @@ def openai_chat():
             "choices": [{"index": 0, "message": {"role": "assistant", "content": full_text}, "finish_reason": "stop"}],
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
+
+
+# --------------------------------------------------------------------------- #
+# Load-Balancer status endpoints                                               #
+# --------------------------------------------------------------------------- #
+
+@app.route("/dsk/balancer", methods=["GET"])
+def balancer_status():
+    return {"accounts": rotator.get_status()}
+
+
+@app.route("/dsk/balancer/<acc_id>/reset", methods=["POST"])
+def balancer_reset(acc_id):
+    rotator.reset_account(acc_id)
+    return {"ok": True}
+
+
+@app.route("/dsk/balancer/reset-all", methods=["POST"])
+def balancer_reset_all():
+    accounts = _load_config().get("accounts", [])
+    for acc in accounts:
+        rotator.reset_account(acc["id"])
+    return {"ok": True}
 
 
 # --------------------------------------------------------------------------- #

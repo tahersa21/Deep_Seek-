@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DeepSeek4Free — محادثة الذكاء الاصطناعي</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=5">
+    <link rel="stylesheet" href="/static/css/style.css?v=6">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -232,6 +232,22 @@
                             <button class="delete-token-btn" onclick="toggleAddForm()">
                                 إلغاء
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Load-balancer panel -->
+                    <div class="balancer-section" id="balancerSection">
+                        <div class="balancer-header">
+                            <p class="sidebar-label" style="margin:0">موازن الحمل <span class="balancer-badge" id="balancerBadge"></span></p>
+                            <div style="display:flex;gap:4px">
+                                <button class="balancer-refresh-btn" onclick="loadBalancer()" title="تحديث">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                </button>
+                                <button class="balancer-reset-all-btn" onclick="resetAllBalancer()" title="إعادة تشغيل الكل">إعادة الكل</button>
+                            </div>
+                        </div>
+                        <div class="balancer-list" id="balancerList">
+                            <div class="balancer-empty">لا توجد حسابات</div>
                         </div>
                     </div>
 

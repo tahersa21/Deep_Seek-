@@ -36,7 +36,8 @@
             const panel = document.getElementById('panel-' + tab.dataset.tab);
             if (panel) panel.classList.remove('hidden');
             if (tab.dataset.tab === 'api') loadKeys();
-            if (tab.dataset.tab === 'settings') loadAccounts();
+            if (tab.dataset.tab === 'settings') { loadAccounts(); startBalancerPolling(); }
+            else stopBalancerPolling();
         });
     });
 
@@ -254,6 +255,83 @@
         showToast('✅ تم نسخ الأمر');
     };
 
+    // ------------------------------------------------------------------ //
+    // Load-balancer status                                                //
+    // ------------------------------------------------------------------ //
+    const balancerList  = document.getElementById('balancerList');
+    const balancerBadge = document.getElementById('balancerBadge');
+    let balancerTimer   = null;
+
+    async function loadBalancer() {
+        try {
+            const res  = await fetch('/dsk/balancer');
+            const data = await res.json();
+            renderBalancer(data.accounts || []);
+        } catch {
+            if (balancerList) balancerList.innerHTML = '<div class="balancer-empty">فشل التحميل</div>';
+        }
+    }
+
+    function fmtSeconds(s) {
+        if (s === null || s === undefined) return '';
+        const m = Math.floor(s / 60), sec = s % 60;
+        return m > 0 ? `${m}د ${sec}ث` : `${sec}ث`;
+    }
+
+    function renderBalancer(accounts) {
+        if (!accounts.length) {
+            if (balancerList) balancerList.innerHTML = '<div class="balancer-empty">أضف حسابات لتفعيل موازن الحمل</div>';
+            if (balancerBadge) balancerBadge.textContent = '';
+            return;
+        }
+        const healthy = accounts.filter(a => a.healthy).length;
+        if (balancerBadge) {
+            balancerBadge.textContent = `${healthy}/${accounts.length} نشط`;
+            balancerBadge.className = 'balancer-badge ' + (healthy === accounts.length ? 'all-ok' : healthy === 0 ? 'all-fail' : 'partial');
+        }
+        if (!balancerList) return;
+        balancerList.innerHTML = accounts.map(acc => {
+            const statusClass = acc.healthy ? 'healthy' : 'quarantined';
+            const statusLabel = acc.healthy ? 'نشط' : `محجوز ${acc.recovery_in !== null ? '(' + fmtSeconds(acc.recovery_in) + ')' : ''}`;
+            const errorHtml   = (!acc.healthy && acc.error)
+                ? `<div class="balancer-item-error" title="${escapeHtml(acc.error)}">${escapeHtml(acc.error.substring(0, 60))}${acc.error.length > 60 ? '…' : ''}</div>`
+                : '';
+            return `
+            <div class="balancer-item ${statusClass}">
+                <span class="balancer-dot ${statusClass}"></span>
+                <div class="balancer-item-body">
+                    <div class="balancer-item-name">
+                        ${escapeHtml(acc.name)}
+                        <span class="balancer-status-label ${statusClass}">${statusLabel}</span>
+                    </div>
+                    <div class="balancer-item-stats">
+                        <span title="الطلبات">📥 ${acc.requests}</span>
+                        <span title="نجح">✅ ${acc.successes}</span>
+                        <span title="فشل">❌ ${acc.failures}</span>
+                        ${acc.proxy ? '<span title="بروكسي">🔒</span>' : ''}
+                    </div>
+                    ${errorHtml}
+                </div>
+                ${!acc.healthy ? `<button class="balancer-reset-btn" onclick="resetBalancerAccount('${acc.id}')">استرداد</button>` : ''}
+            </div>`;
+        }).join('');
+    }
+
+    window.resetBalancerAccount = async function(id) {
+        await fetch(`/dsk/balancer/${id}/reset`, { method: 'POST' });
+        await loadBalancer();
+    };
+
+    window.resetAllBalancer = async function() {
+        await fetch('/dsk/balancer/reset-all', { method: 'POST' });
+        showAccountsResult('✅ تم إعادة تشغيل جميع الحسابات', 'success');
+        await loadBalancer();
+    };
+
+    // Auto-refresh balancer every 10s while settings tab is open
+    function startBalancerPolling()  { loadBalancer(); balancerTimer = setInterval(loadBalancer, 10000); }
+    function stopBalancerPolling()   { clearInterval(balancerTimer); balancerTimer = null; }
+
     window.openSettingsTab = function() {
         document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.sidebar-panel').forEach(p => p.classList.add('hidden'));
@@ -263,6 +341,7 @@
         if (panel) panel.classList.remove('hidden');
         if (sidebar.classList.contains('collapsed')) sidebar.classList.remove('collapsed');
         loadAccounts();
+        startBalancerPolling();
     };
 
     function updateHeaderStatus(tokenSet) {
