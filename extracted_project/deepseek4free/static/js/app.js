@@ -20,6 +20,10 @@
     const sidebar        = document.getElementById('sidebar');
     const welcomeScreen  = document.getElementById('welcomeScreen');
     const toast          = document.getElementById('toast');
+    const noTokenBanner  = document.getElementById('noTokenBanner');
+    const statusDot      = document.getElementById('statusDot');
+    const statusText     = document.getElementById('statusText');
+    const modelDot       = document.getElementById('modelDot');
 
     // ------------------------------------------------------------------ //
     // Sidebar tabs                                                         //
@@ -32,8 +36,136 @@
             const panel = document.getElementById('panel-' + tab.dataset.tab);
             if (panel) panel.classList.remove('hidden');
             if (tab.dataset.tab === 'api') loadKeys();
+            if (tab.dataset.tab === 'settings') loadTokenStatus();
         });
     });
+
+    // ------------------------------------------------------------------ //
+    // Token / Settings                                                     //
+    // ------------------------------------------------------------------ //
+    const tokenStatusIcon = document.getElementById('tokenStatusIcon');
+    const tokenStatusText = document.getElementById('tokenStatusText');
+    const tokenMasked     = document.getElementById('tokenMasked');
+    const tokenInput      = document.getElementById('tokenInput');
+    const saveTokenBtn    = document.getElementById('saveTokenBtn');
+    const deleteTokenBtn  = document.getElementById('deleteTokenBtn');
+    const tokenResult     = document.getElementById('tokenResult');
+
+    async function loadTokenStatus() {
+        try {
+            const res = await fetch('/dsk/config');
+            const data = await res.json();
+            updateTokenUI(data);
+            updateHeaderStatus(data.token_set);
+        } catch {
+            tokenStatusIcon.textContent = '⚠️';
+            tokenStatusText.textContent = 'فشل التحقق من التوكن';
+        }
+    }
+
+    function updateTokenUI(data) {
+        if (data.token_set) {
+            tokenStatusIcon.textContent = '✅';
+            tokenStatusText.textContent = 'التوكن مُضبوط';
+            tokenMasked.textContent = data.masked || '';
+            noTokenBanner.classList.add('hidden');
+        } else {
+            tokenStatusIcon.textContent = '❌';
+            tokenStatusText.textContent = 'التوكن غير مُضبوط';
+            tokenMasked.textContent = '';
+            noTokenBanner.classList.remove('hidden');
+        }
+    }
+
+    function updateHeaderStatus(tokenSet) {
+        if (tokenSet) {
+            statusDot.classList.add('active');
+            statusText.textContent = 'متصل';
+            modelDot.style.background = 'var(--success)';
+        } else {
+            statusDot.classList.remove('active');
+            statusText.textContent = 'لم يتم ضبط التوكن';
+            modelDot.style.background = 'var(--error)';
+        }
+    }
+
+    saveTokenBtn.addEventListener('click', async () => {
+        const token = tokenInput.value.trim();
+        if (!token) {
+            showTokenResult('يرجى إدخال التوكن أولاً', 'error');
+            return;
+        }
+        saveTokenBtn.disabled = true;
+        saveTokenBtn.textContent = 'جارٍ الحفظ...';
+        hideTokenResult();
+        try {
+            const res = await fetch('/dsk/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ auth_token: token }),
+            });
+            const data = await res.json();
+            if (res.ok && data.ok) {
+                showTokenResult('✅ ' + data.message, 'success');
+                tokenInput.value = '';
+                await loadTokenStatus();
+                // Also reset session so next chat uses the new token
+                sessionId = null;
+                sessionPromise = prefetchSession();
+            } else {
+                showTokenResult('❌ ' + (data.message || data.error || 'حدث خطأ'), 'error');
+            }
+        } catch {
+            showTokenResult('❌ فشل الاتصال بالخادم', 'error');
+        } finally {
+            saveTokenBtn.disabled = false;
+            saveTokenBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> حفظ التوكن`;
+        }
+    });
+
+    deleteTokenBtn.addEventListener('click', async () => {
+        if (!confirm('هل تريد حذف التوكن؟ ستحتاج لإضافته مجدداً للتحدث مع DeepSeek.')) return;
+        try {
+            await fetch('/dsk/config', { method: 'DELETE' });
+            await loadTokenStatus();
+            showTokenResult('🗑️ تم حذف التوكن', 'success');
+            sessionId = null;
+        } catch {
+            showTokenResult('❌ فشل الحذف', 'error');
+        }
+    });
+
+    function showTokenResult(msg, type) {
+        tokenResult.textContent = msg;
+        tokenResult.className = 'token-result ' + type;
+        tokenResult.classList.remove('hidden');
+    }
+
+    function hideTokenResult() {
+        tokenResult.classList.add('hidden');
+    }
+
+    window.toggleTokenVisibility = function() {
+        const isPassword = tokenInput.type === 'password';
+        tokenInput.type = isPassword ? 'text' : 'password';
+        document.getElementById('eyeIcon').style.opacity = isPassword ? '0.4' : '1';
+    };
+
+    window.copyTokenHint = function() {
+        navigator.clipboard.writeText("JSON.parse(localStorage.getItem('userToken')).value");
+        showToast('✅ تم نسخ الأمر');
+    };
+
+    window.openSettingsTab = function() {
+        document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.sidebar-panel').forEach(p => p.classList.add('hidden'));
+        const tab = document.querySelector('.sidebar-tab[data-tab="settings"]');
+        const panel = document.getElementById('panel-settings');
+        if (tab) tab.classList.add('active');
+        if (panel) panel.classList.remove('hidden');
+        if (sidebar.classList.contains('collapsed')) sidebar.classList.remove('collapsed');
+        loadTokenStatus();
+    };
 
     // ------------------------------------------------------------------ //
     // API Key management                                                   //
@@ -55,7 +187,7 @@
 
     async function loadKeys() {
         try {
-            const res = await fetch('/api/keys');
+            const res = await fetch('/dsk/keys');
             const data = await res.json();
             renderKeys(data.keys || []);
         } catch {
@@ -88,7 +220,7 @@
         genKeyBtn.disabled = true;
         newKeyReveal.classList.add('hidden');
         try {
-            const res = await fetch('/api/keys', {
+            const res = await fetch('/dsk/keys', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name }),
@@ -116,7 +248,7 @@
     window.deleteKey = async function(kid) {
         if (!confirm('هل تريد حذف هذا المفتاح؟')) return;
         try {
-            const res = await fetch(`/api/keys/${kid}`, { method: 'DELETE' });
+            const res = await fetch(`/dsk/keys/${kid}`, { method: 'DELETE' });
             if (res.ok) {
                 showToast('🗑️ تم حذف المفتاح');
                 await loadKeys();
@@ -131,7 +263,8 @@
     // ------------------------------------------------------------------ //
     // Initialisation                                                       //
     // ------------------------------------------------------------------ //
-    sessionPromise = prefetchSession();
+    loadTokenStatus();
+    sessionPromise = prefetchSession().catch(() => {});
 
     // ------------------------------------------------------------------ //
     // Event listeners                                                      //
@@ -162,7 +295,7 @@
     async function prefetchSession() {
         if (sessionId) return sessionId;
         try {
-            const res = await fetch('/api/session', { method: 'POST' });
+            const res = await fetch('/dsk/session', { method: 'POST' });
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
@@ -179,9 +312,15 @@
         try {
             await (sessionPromise || prefetchSession());
             return !!sessionId;
-        } catch (err) {
-            showToast('❌ فشل إنشاء الجلسة: ' + err.message);
-            return false;
+        } catch {
+            // Try once more (token may have been set after initial load)
+            try {
+                await prefetchSession();
+                return !!sessionId;
+            } catch (err) {
+                showToast('❌ فشل إنشاء الجلسة: ' + err.message);
+                return false;
+            }
         }
     }
 
@@ -212,7 +351,6 @@
         const bubble        = aiGroup.querySelector('.message-bubble');
         const timerEl       = aiGroup.querySelector('.response-timer');
 
-        // Live ticking counter
         let tickInterval = setInterval(() => {
             const elapsed = (performance.now() - startTime) / 1000;
             timerEl.textContent = `⏱ ${elapsed.toFixed(1)}s`;
@@ -222,10 +360,9 @@
         let textContent     = '';
         let hasThinking     = false;
         let hasText         = false;
-        let pendingRender   = false;  // RAF gate
+        let pendingRender   = false;
         const startTime     = performance.now();
 
-        // Batched DOM update via requestAnimationFrame
         function scheduleRender() {
             if (pendingRender) return;
             pendingRender = true;
@@ -238,7 +375,7 @@
         }
 
         try {
-            const res = await fetch('/api/chat', {
+            const res = await fetch('/dsk/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -265,7 +402,7 @@
 
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
-                buffer = lines.pop(); // keep incomplete line
+                buffer = lines.pop();
 
                 for (const line of lines) {
                     if (!line.startsWith('data: ')) continue;
@@ -308,7 +445,6 @@
                 }
             }
 
-            // Final render to ensure last batch is applied
             if (hasText) bubble.innerHTML = formatText(textContent);
             if (hasThinking) thinkingBody.textContent = thinkingContent;
 
@@ -332,8 +468,7 @@
             sendBtn.disabled = messageInput.value.trim() === '';
             scheduleScroll();
 
-            // Pre-fetch session for next message immediately
-            sessionPromise = prefetchSession();
+            sessionPromise = prefetchSession().catch(() => {});
         }
     }
 
@@ -374,7 +509,6 @@
         sendBtn.disabled = messageInput.value.trim() === '' || isStreaming;
     }
 
-    // Debounced scroll — avoids layout thrashing during fast streaming
     let scrollRaf = null;
     function scheduleScroll() {
         if (scrollRaf) return;
@@ -402,8 +536,7 @@
             });
         }
 
-        // Pre-fetch a new session immediately
-        sessionPromise = prefetchSession();
+        sessionPromise = prefetchSession().catch(() => {});
     }
 
     // ------------------------------------------------------------------ //
@@ -418,14 +551,12 @@
     }
 
     function formatText(text) {
-        // Process code blocks before escaping other HTML
         const parts = [];
         let lastIndex = 0;
         const codeBlockRe = /```(\w*)\n?([\s\S]*?)```/g;
         let match;
 
         while ((match = codeBlockRe.exec(text)) !== null) {
-            // Plain text before the code block
             parts.push(renderInline(text.slice(lastIndex, match.index)));
             const lang = escapeHtml(match[1] || '');
             const code = escapeHtml(match[2]);

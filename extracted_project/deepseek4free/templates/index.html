@@ -42,7 +42,14 @@
                         <rect x="2" y="7" width="20" height="14" rx="2"/>
                         <path d="M16 3h-8l-1 4h10l-1-4z"/>
                     </svg>
-                    مفاتيح API
+                    API
+                </button>
+                <button class="sidebar-tab" data-tab="settings" id="settingsTab">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    إعدادات
                 </button>
             </div>
 
@@ -148,10 +155,101 @@
                 </div>
             </div>
 
+            <!-- Tab: Settings -->
+            <div class="sidebar-panel hidden" id="panel-settings">
+                <div class="settings-panel">
+                    <p class="sidebar-label">بيانات الاعتماد</p>
+
+                    <!-- Token status -->
+                    <div class="token-status-box" id="tokenStatusBox">
+                        <div class="token-status-row">
+                            <span class="token-status-icon" id="tokenStatusIcon">⏳</span>
+                            <span class="token-status-text" id="tokenStatusText">جارٍ التحقق...</span>
+                        </div>
+                        <code class="token-masked" id="tokenMasked"></code>
+                    </div>
+
+                    <!-- Token input form -->
+                    <div class="token-form">
+                        <label class="token-label">توكن DeepSeek</label>
+                        <p class="token-desc">
+                            احصل عليه من <strong>chat.deepseek.com</strong> ← افتح DevTools (F12) ← Console ثم اكتب:
+                        </p>
+                        <div class="token-hint-code">
+                            <code>JSON.parse(localStorage.getItem('userToken')).value</code>
+                            <button class="copy-btn-sm" onclick="copyTokenHint()" title="نسخ">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            </button>
+                        </div>
+
+                        <div class="token-input-row">
+                            <input
+                                type="password"
+                                id="tokenInput"
+                                class="token-input"
+                                placeholder="الصق التوكن هنا..."
+                                autocomplete="off"
+                                spellcheck="false"
+                            >
+                            <button class="token-eye-btn" id="tokenEyeBtn" onclick="toggleTokenVisibility()" title="إظهار/إخفاء">
+                                <svg id="eyeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="token-actions">
+                            <button class="save-token-btn" id="saveTokenBtn">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                حفظ التوكن
+                            </button>
+                            <button class="delete-token-btn" id="deleteTokenBtn">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                </svg>
+                                حذف
+                            </button>
+                        </div>
+
+                        <div class="token-result hidden" id="tokenResult"></div>
+                    </div>
+
+                    <!-- How to get token guide -->
+                    <div class="token-guide">
+                        <p class="sidebar-label" style="margin-top:4px">خطوات الحصول على التوكن</p>
+                        <div class="usage-steps">
+                            <div class="usage-step">
+                                <span class="step-num">١</span>
+                                <span>افتح <strong>chat.deepseek.com</strong> وسجّل الدخول</span>
+                            </div>
+                            <div class="usage-step">
+                                <span class="step-num">٢</span>
+                                <span>افتح DevTools بالضغط على <code>F12</code></span>
+                            </div>
+                            <div class="usage-step">
+                                <span class="step-num">٣</span>
+                                <span>اذهب لتبويب <code>Console</code></span>
+                            </div>
+                            <div class="usage-step">
+                                <span class="step-num">٤</span>
+                                <span>الصق الأمر أعلاه واضغط Enter</span>
+                            </div>
+                            <div class="usage-step">
+                                <span class="step-num">٥</span>
+                                <span>انسخ القيمة الظاهرة والصقها هنا</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="sidebar-footer">
                 <div class="model-badge">
-                    <span class="model-dot"></span>
-                    DeepSeek R1
+                    <span class="model-dot" id="modelDot"></span>
+                    <span id="modelStatus">DeepSeek R1</span>
                 </div>
             </div>
         </aside>
@@ -166,10 +264,19 @@
                 </button>
                 <span class="header-title">محادثة ذكية</span>
                 <div class="header-status" id="headerStatus">
-                    <span class="status-dot active"></span>
-                    <span>متصل</span>
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="statusText">جارٍ الاتصال...</span>
                 </div>
             </header>
+
+            <!-- No token banner -->
+            <div class="no-token-banner hidden" id="noTokenBanner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span>لم يتم ضبط توكن DeepSeek بعد.</span>
+                <button onclick="openSettingsTab()">أضفه من الإعدادات</button>
+            </div>
 
             <div class="chat-messages" id="chatMessages">
                 <div class="welcome-screen" id="welcomeScreen">

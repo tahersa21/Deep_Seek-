@@ -13,18 +13,51 @@ load_dotenv()
 
 app = Flask(__name__)
 
-AUTH_TOKEN = os.getenv("DEEPSEEK_AUTH_TOKEN")
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
+
+_config_cache: dict | None = None
+
+
+def _load_config() -> dict:
+    global _config_cache
+    if _config_cache is not None:
+        return _config_cache
+    try:
+        with open(CONFIG_FILE, "r") as f:
+            _config_cache = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        _config_cache = {}
+    return _config_cache
+
+
+def _save_config(cfg: dict) -> None:
+    global _config_cache
+    _config_cache = cfg
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+
+def _get_auth_token() -> str | None:
+    cfg = _load_config()
+    return cfg.get("auth_token") or os.getenv("DEEPSEEK_AUTH_TOKEN")
+
 
 _api: DeepSeekAPI | None = None
 
 
 def get_api() -> DeepSeekAPI:
     global _api
+    token = _get_auth_token()
     if _api is None:
-        if not AUTH_TOKEN:
-            raise AuthenticationError("DEEPSEEK_AUTH_TOKEN environment variable is not set")
-        _api = DeepSeekAPI(AUTH_TOKEN)
+        if not token:
+            raise AuthenticationError("لم يتم تعيين توكن DeepSeek بعد")
+        _api = DeepSeekAPI(token)
     return _api
+
+
+def reset_api() -> None:
+    global _api
+    _api = None
 
 
 try:
@@ -34,10 +67,51 @@ except Exception as e:
 
 
 # --------------------------------------------------------------------------- #
+# Config / Auth Token endpoints                                                #
+# --------------------------------------------------------------------------- #
+
+@app.route("/dsk/config", methods=["GET"])
+def get_config():
+    token = _get_auth_token()
+    if token:
+        masked = token[:8] + "..." + token[-4:]
+        return {"token_set": True, "masked": masked}
+    return {"token_set": False, "masked": None}
+
+
+@app.route("/dsk/config", methods=["POST"])
+def set_config():
+    data = request.json or {}
+    token = data.get("auth_token", "").strip()
+    if not token:
+        return {"error": "التوكن لا يمكن أن يكون فارغاً"}, 400
+
+    cfg = _load_config()
+    cfg["auth_token"] = token
+    _save_config(cfg)
+    reset_api()
+
+    try:
+        get_api()
+        return {"ok": True, "message": "تم حفظ التوكن بنجاح وتم الاتصال بـ DeepSeek"}
+    except Exception as e:
+        return {"ok": False, "message": f"تم حفظ التوكن لكن فشل الاتصال: {e}"}
+
+
+@app.route("/dsk/config", methods=["DELETE"])
+def delete_config():
+    cfg = _load_config()
+    cfg.pop("auth_token", None)
+    _save_config(cfg)
+    reset_api()
+    return {"ok": True}
+
+
+# --------------------------------------------------------------------------- #
 # API Key management                                                           #
 # --------------------------------------------------------------------------- #
 
-KEYS_FILE = "api_keys.json"
+KEYS_FILE = os.path.join(os.path.dirname(__file__), "api_keys.json")
 
 _keys_cache: dict | None = None
 
@@ -72,7 +146,7 @@ def _check_api_key(req) -> tuple[bool, str]:
     return True, key
 
 
-@app.route("/api/keys", methods=["GET"])
+@app.route("/dsk/keys", methods=["GET"])
 def list_keys():
     keys = _load_keys()
     result = []
@@ -87,7 +161,7 @@ def list_keys():
     return {"keys": result}
 
 
-@app.route("/api/keys", methods=["POST"])
+@app.route("/dsk/keys", methods=["POST"])
 def create_key():
     data = request.json or {}
     name = data.get("name", "مفتاح جديد").strip() or "مفتاح جديد"
@@ -103,7 +177,7 @@ def create_key():
     return {"key": raw_key, "id": kid, "name": name}, 201
 
 
-@app.route("/api/keys/<kid>", methods=["DELETE"])
+@app.route("/dsk/keys/<kid>", methods=["DELETE"])
 def delete_key(kid):
     keys = _load_keys()
     target = next((k for k, v in keys.items() if v["id"] == kid), None)
@@ -246,18 +320,18 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/api/session", methods=["POST"])
+@app.route("/dsk/session", methods=["POST"])
 def create_session():
     try:
         session_id = get_api().create_chat_session()
         return {"session_id": session_id}
     except AuthenticationError as e:
-        return {"error": str(e)}, 401
+        return {"error": str(e), "needs_token": True}, 401
     except Exception as e:
         return {"error": str(e)}, 500
 
 
-@app.route("/api/chat", methods=["POST"])
+@app.route("/dsk/chat", methods=["POST"])
 def chat():
     data = request.json or {}
     session_id = data.get("session_id", "").strip()
