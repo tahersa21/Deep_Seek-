@@ -158,68 +158,76 @@
             <!-- Tab: Settings -->
             <div class="sidebar-panel hidden" id="panel-settings">
                 <div class="settings-panel">
-                    <p class="sidebar-label">بيانات الاعتماد</p>
 
-                    <!-- Token status -->
-                    <div class="token-status-box" id="tokenStatusBox">
-                        <div class="token-status-row">
-                            <span class="token-status-icon" id="tokenStatusIcon">⏳</span>
-                            <span class="token-status-text" id="tokenStatusText">جارٍ التحقق...</span>
-                        </div>
-                        <code class="token-masked" id="tokenMasked"></code>
+                    <!-- Accounts list -->
+                    <div class="accounts-header">
+                        <p class="sidebar-label" style="margin:0">الحسابات</p>
+                        <button class="add-account-toggle-btn" id="addAccountToggleBtn" onclick="toggleAddForm()">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                            إضافة حساب
+                        </button>
                     </div>
 
-                    <!-- Token input form -->
-                    <div class="token-form">
-                        <label class="token-label">توكن DeepSeek</label>
-                        <p class="token-desc">
-                            احصل عليه من <strong>chat.deepseek.com</strong> ← افتح DevTools (F12) ← Console ثم اكتب:
-                        </p>
-                        <div class="token-hint-code">
+                    <div class="accounts-list" id="accountsList">
+                        <div class="accounts-empty">لا توجد حسابات بعد</div>
+                    </div>
+
+                    <div class="accounts-result hidden" id="accountsResult"></div>
+
+                    <!-- Add account form (collapsible) -->
+                    <div class="add-account-form hidden" id="addAccountForm">
+                        <p class="sidebar-label" style="margin-top:0">إضافة حساب جديد</p>
+
+                        <input
+                            type="text"
+                            id="accNameInput"
+                            class="token-input acc-name-input"
+                            placeholder="اسم الحساب (مثال: حسابي الشخصي)"
+                            maxlength="40"
+                        >
+
+                        <div class="token-hint-code" style="margin-top:4px">
                             <code>JSON.parse(localStorage.getItem('userToken')).value</code>
                             <button class="copy-btn-sm" onclick="copyTokenHint()" title="نسخ">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                             </button>
                         </div>
 
-                        <div class="token-input-row">
+                        <div class="token-input-row" style="margin-top:4px">
                             <input
                                 type="password"
-                                id="tokenInput"
+                                id="accTokenInput"
                                 class="token-input"
                                 placeholder="الصق التوكن هنا..."
                                 autocomplete="off"
                                 spellcheck="false"
                             >
-                            <button class="token-eye-btn" id="tokenEyeBtn" onclick="toggleTokenVisibility()" title="إظهار/إخفاء">
-                                <svg id="eyeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <button class="token-eye-btn" onclick="toggleAccTokenVisibility()" title="إظهار/إخفاء">
+                                <svg id="accEyeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                                     <circle cx="12" cy="12" r="3"/>
                                 </svg>
                             </button>
                         </div>
 
-                        <div class="token-actions">
-                            <button class="save-token-btn" id="saveTokenBtn">
+                        <div class="token-actions" style="margin-top:6px">
+                            <button class="save-token-btn" id="saveAccountBtn">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                     <polyline points="20 6 9 17 4 12"/>
                                 </svg>
-                                حفظ التوكن
+                                حفظ الحساب
                             </button>
-                            <button class="delete-token-btn" id="deleteTokenBtn">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                                </svg>
-                                حذف
+                            <button class="delete-token-btn" onclick="toggleAddForm()">
+                                إلغاء
                             </button>
                         </div>
-
-                        <div class="token-result hidden" id="tokenResult"></div>
                     </div>
 
                     <!-- How to get token guide -->
                     <div class="token-guide">
-                        <p class="sidebar-label" style="margin-top:4px">خطوات الحصول على التوكن</p>
+                        <p class="sidebar-label" style="margin-top:4px">كيف تحصل على التوكن؟</p>
                         <div class="usage-steps">
                             <div class="usage-step">
                                 <span class="step-num">١</span>
@@ -227,19 +235,15 @@
                             </div>
                             <div class="usage-step">
                                 <span class="step-num">٢</span>
-                                <span>افتح DevTools بالضغط على <code>F12</code></span>
+                                <span>اضغط <code>F12</code> ← تبويب <code>Console</code></span>
                             </div>
                             <div class="usage-step">
                                 <span class="step-num">٣</span>
-                                <span>اذهب لتبويب <code>Console</code></span>
-                            </div>
-                            <div class="usage-step">
-                                <span class="step-num">٤</span>
                                 <span>الصق الأمر أعلاه واضغط Enter</span>
                             </div>
                             <div class="usage-step">
-                                <span class="step-num">٥</span>
-                                <span>انسخ القيمة الظاهرة والصقها هنا</span>
+                                <span class="step-num">٤</span>
+                                <span>انسخ الناتج والصقه في حقل التوكن</span>
                             </div>
                         </div>
                     </div>

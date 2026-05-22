@@ -854,6 +854,204 @@ body {
 .message-bubble strong { font-weight: 700; }
 .message-bubble em { font-style: italic; }
 
+/* Accounts header */
+.accounts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.add-account-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(79,110,247,0.3);
+    border-radius: 6px;
+    color: var(--accent);
+    font-family: var(--font);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 4px 9px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.add-account-toggle-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+/* Accounts list */
+.accounts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.accounts-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 14px;
+}
+
+.account-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-tertiary);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    transition: border-color 0.2s;
+    position: relative;
+}
+
+.account-item.is-active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.account-item-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+.account-item.is-active .account-item-indicator {
+    background: var(--success);
+    box-shadow: 0 0 0 2px rgba(34,197,94,0.25);
+}
+
+.account-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.account-item-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.account-active-badge {
+    font-size: 9.5px;
+    font-weight: 700;
+    background: rgba(79,110,247,0.2);
+    color: var(--accent);
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+}
+
+.account-item-masked {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
+
+.account-item-actions {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.acc-activate-btn {
+    background: none;
+    border: 1px solid rgba(79,110,247,0.3);
+    border-radius: 5px;
+    color: var(--accent);
+    font-family: var(--font);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 3px 7px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.acc-activate-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+.account-item.is-active .acc-activate-btn { display: none; }
+
+.acc-delete-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 5px;
+    display: flex;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.acc-delete-btn:hover { color: var(--error); background: rgba(239,68,68,0.1); }
+
+/* Add account form */
+.add-account-form {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: slideDown 0.2s ease;
+}
+
+.add-account-form.hidden { display: none; }
+
+.acc-name-input {
+    font-family: var(--font) !important;
+    font-size: 13px !important;
+    letter-spacing: 0 !important;
+    padding: 8px 10px !important;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border);
+    background: var(--bg-secondary);
+    outline: none;
+    width: 100%;
+    color: var(--text-primary);
+    transition: border-color 0.2s;
+}
+
+.acc-name-input:focus { border-color: var(--accent); }
+.acc-name-input::placeholder { color: var(--text-muted); }
+
+.accounts-result {
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+    animation: slideDown 0.2s ease;
+}
+
+.accounts-result.success {
+    background: rgba(34,197,94,0.1);
+    border: 1px solid rgba(34,197,94,0.3);
+    color: #86efac;
+}
+
+.accounts-result.error {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #fca5a5;
+}
+
 /* Settings panel */
 .settings-panel {
     padding: 14px 14px;

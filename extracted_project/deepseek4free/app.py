@@ -24,9 +24,27 @@ def _load_config() -> dict:
         return _config_cache
     try:
         with open(CONFIG_FILE, "r") as f:
-            _config_cache = json.load(f)
+            data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        _config_cache = {}
+        data = {}
+
+    # Migrate old single-token format → new multi-account format
+    if "auth_token" in data and "accounts" not in data:
+        old_token = data["auth_token"]
+        acc_id = secrets.token_hex(8)
+        data = {
+            "accounts": [{"id": acc_id, "name": "الحساب الافتراضي", "token": old_token}],
+            "active_id": acc_id,
+        }
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    if "accounts" not in data:
+        data["accounts"] = []
+    if "active_id" not in data:
+        data["active_id"] = None
+
+    _config_cache = data
     return _config_cache
 
 
@@ -37,27 +55,39 @@ def _save_config(cfg: dict) -> None:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 
-def _get_auth_token() -> str | None:
+def _get_active_token() -> str | None:
     cfg = _load_config()
-    return cfg.get("auth_token") or os.getenv("DEEPSEEK_AUTH_TOKEN")
+    active_id = cfg.get("active_id")
+    for acc in cfg.get("accounts", []):
+        if acc["id"] == active_id:
+            return acc["token"]
+    # Fallback: use env var
+    return os.getenv("DEEPSEEK_AUTH_TOKEN")
 
 
-_api: DeepSeekAPI | None = None
+# Cache of per-account API instances  {account_id: DeepSeekAPI}
+_api_instances: dict[str, DeepSeekAPI] = {}
 
 
 def get_api() -> DeepSeekAPI:
-    global _api
-    token = _get_auth_token()
-    if _api is None:
-        if not token:
-            raise AuthenticationError("لم يتم تعيين توكن DeepSeek بعد")
-        _api = DeepSeekAPI(token)
-    return _api
+    cfg = _load_config()
+    active_id = cfg.get("active_id")
+    token = _get_active_token()
+    if not token:
+        raise AuthenticationError("لم يتم تعيين حساب نشط بعد")
+
+    key = active_id or "env"
+    if key not in _api_instances:
+        _api_instances[key] = DeepSeekAPI(token)
+    return _api_instances[key]
 
 
-def reset_api() -> None:
-    global _api
-    _api = None
+def reset_api(account_id: str | None = None) -> None:
+    global _api_instances
+    if account_id:
+        _api_instances.pop(account_id, None)
+    else:
+        _api_instances.clear()
 
 
 try:
@@ -67,44 +97,124 @@ except Exception as e:
 
 
 # --------------------------------------------------------------------------- #
-# Config / Auth Token endpoints                                                #
+# Accounts endpoints                                                           #
 # --------------------------------------------------------------------------- #
+
+def _mask(token: str) -> str:
+    if len(token) <= 12:
+        return "***"
+    return token[:8] + "..." + token[-4:]
+
+
+@app.route("/dsk/accounts", methods=["GET"])
+def list_accounts():
+    cfg = _load_config()
+    active_id = cfg.get("active_id")
+    result = []
+    for acc in cfg.get("accounts", []):
+        result.append({
+            "id": acc["id"],
+            "name": acc["name"],
+            "masked": _mask(acc["token"]),
+            "active": acc["id"] == active_id,
+            "created_at": acc.get("created_at", 0),
+        })
+    return {"accounts": result, "active_id": active_id}
+
+
+@app.route("/dsk/accounts", methods=["POST"])
+def add_account():
+    data = request.json or {}
+    token = data.get("token", "").strip()
+    name = data.get("name", "").strip() or "حساب جديد"
+    if not token:
+        return {"error": "التوكن مطلوب"}, 400
+
+    cfg = _load_config()
+    acc_id = secrets.token_hex(8)
+    new_acc = {"id": acc_id, "name": name, "token": token, "created_at": int(time.time())}
+    cfg["accounts"].append(new_acc)
+
+    # Auto-activate if it's the first account or no active account
+    if not cfg.get("active_id") or not any(a["id"] == cfg["active_id"] for a in cfg["accounts"]):
+        cfg["active_id"] = acc_id
+
+    _save_config(cfg)
+    reset_api(acc_id)
+
+    # Try connecting to verify token
+    try:
+        reset_api(acc_id)
+        get_api()
+        ok_msg = "تم إضافة الحساب بنجاح"
+    except Exception as e:
+        ok_msg = f"تم الحفظ لكن تحقق من التوكن: {e}"
+
+    return {
+        "ok": True,
+        "id": acc_id,
+        "message": ok_msg,
+        "active": cfg["active_id"] == acc_id,
+    }, 201
+
+
+@app.route("/dsk/accounts/<acc_id>", methods=["PATCH"])
+def rename_account(acc_id):
+    data = request.json or {}
+    name = data.get("name", "").strip()
+    if not name:
+        return {"error": "الاسم مطلوب"}, 400
+    cfg = _load_config()
+    acc = next((a for a in cfg["accounts"] if a["id"] == acc_id), None)
+    if not acc:
+        return {"error": "الحساب غير موجود"}, 404
+    acc["name"] = name
+    _save_config(cfg)
+    return {"ok": True}
+
+
+@app.route("/dsk/accounts/<acc_id>", methods=["DELETE"])
+def remove_account(acc_id):
+    cfg = _load_config()
+    before = len(cfg["accounts"])
+    cfg["accounts"] = [a for a in cfg["accounts"] if a["id"] != acc_id]
+    if len(cfg["accounts"]) == before:
+        return {"error": "الحساب غير موجود"}, 404
+
+    # If the deleted account was active, activate the first remaining one
+    if cfg.get("active_id") == acc_id:
+        cfg["active_id"] = cfg["accounts"][0]["id"] if cfg["accounts"] else None
+
+    _save_config(cfg)
+    reset_api(acc_id)
+    return {"ok": True}
+
+
+@app.route("/dsk/accounts/<acc_id>/activate", methods=["POST"])
+def activate_account(acc_id):
+    cfg = _load_config()
+    acc = next((a for a in cfg["accounts"] if a["id"] == acc_id), None)
+    if not acc:
+        return {"error": "الحساب غير موجود"}, 404
+    cfg["active_id"] = acc_id
+    _save_config(cfg)
+    reset_api()  # clear all cached APIs so next request uses the new active token
+    return {"ok": True, "name": acc["name"]}
+
 
 @app.route("/dsk/config", methods=["GET"])
 def get_config():
-    token = _get_auth_token()
+    token = _get_active_token()
+    cfg = _load_config()
+    active_id = cfg.get("active_id")
+    active_name = None
+    for acc in cfg.get("accounts", []):
+        if acc["id"] == active_id:
+            active_name = acc["name"]
+            break
     if token:
-        masked = token[:8] + "..." + token[-4:]
-        return {"token_set": True, "masked": masked}
-    return {"token_set": False, "masked": None}
-
-
-@app.route("/dsk/config", methods=["POST"])
-def set_config():
-    data = request.json or {}
-    token = data.get("auth_token", "").strip()
-    if not token:
-        return {"error": "التوكن لا يمكن أن يكون فارغاً"}, 400
-
-    cfg = _load_config()
-    cfg["auth_token"] = token
-    _save_config(cfg)
-    reset_api()
-
-    try:
-        get_api()
-        return {"ok": True, "message": "تم حفظ التوكن بنجاح وتم الاتصال بـ DeepSeek"}
-    except Exception as e:
-        return {"ok": False, "message": f"تم حفظ التوكن لكن فشل الاتصال: {e}"}
-
-
-@app.route("/dsk/config", methods=["DELETE"])
-def delete_config():
-    cfg = _load_config()
-    cfg.pop("auth_token", None)
-    _save_config(cfg)
-    reset_api()
-    return {"ok": True}
+        return {"token_set": True, "masked": _mask(token), "active_name": active_name}
+    return {"token_set": False, "masked": None, "active_name": None}
 
 
 # --------------------------------------------------------------------------- #
@@ -261,11 +371,7 @@ def openai_chat():
                     "object": "chat.completion.chunk",
                     "created": created,
                     "model": model,
-                    "choices": [{
-                        "index": 0,
-                        "delta": {},
-                        "finish_reason": "stop",
-                    }],
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
                 }
                 yield f"data: {json.dumps(finish_payload)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -278,20 +384,13 @@ def openai_chat():
         return Response(
             stream_with_context(generate_stream()),
             mimetype="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "X-Accel-Buffering": "no",
-                "Connection": "keep-alive",
-            },
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
         )
 
     else:
         full_text = ""
         try:
-            for chunk in api.chat_completion(
-                session_id, prompt,
-                thinking_enabled=thinking_enabled,
-            ):
+            for chunk in api.chat_completion(session_id, prompt, thinking_enabled=thinking_enabled):
                 if chunk.get("type") == "text":
                     full_text += chunk.get("content", "")
         except Exception as e:
@@ -302,17 +401,13 @@ def openai_chat():
             "object": "chat.completion",
             "created": created,
             "model": model,
-            "choices": [{
-                "index": 0,
-                "message": {"role": "assistant", "content": full_text},
-                "finish_reason": "stop",
-            }],
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": full_text}, "finish_reason": "stop"}],
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
 
 # --------------------------------------------------------------------------- #
-# Original chat routes                                                         #
+# Chat routes                                                                  #
 # --------------------------------------------------------------------------- #
 
 @app.route("/")
@@ -358,8 +453,7 @@ def chat():
         try:
             api = get_api()
             for chunk in api.chat_completion(
-                session_id,
-                prompt,
+                session_id, prompt,
                 parent_message_id=parent_message_id,
                 thinking_enabled=thinking_enabled,
                 search_enabled=search_enabled,
@@ -402,11 +496,7 @@ def chat():
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
     )
 
 

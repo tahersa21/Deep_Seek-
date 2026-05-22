@@ -36,119 +36,154 @@
             const panel = document.getElementById('panel-' + tab.dataset.tab);
             if (panel) panel.classList.remove('hidden');
             if (tab.dataset.tab === 'api') loadKeys();
-            if (tab.dataset.tab === 'settings') loadTokenStatus();
+            if (tab.dataset.tab === 'settings') loadAccounts();
         });
     });
 
     // ------------------------------------------------------------------ //
-    // Token / Settings                                                     //
+    // Accounts management                                                  //
     // ------------------------------------------------------------------ //
-    const tokenStatusIcon = document.getElementById('tokenStatusIcon');
-    const tokenStatusText = document.getElementById('tokenStatusText');
-    const tokenMasked     = document.getElementById('tokenMasked');
-    const tokenInput      = document.getElementById('tokenInput');
-    const saveTokenBtn    = document.getElementById('saveTokenBtn');
-    const deleteTokenBtn  = document.getElementById('deleteTokenBtn');
-    const tokenResult     = document.getElementById('tokenResult');
+    const accountsList    = document.getElementById('accountsList');
+    const accountsResult  = document.getElementById('accountsResult');
+    const addAccountForm  = document.getElementById('addAccountForm');
+    const accNameInput    = document.getElementById('accNameInput');
+    const accTokenInput   = document.getElementById('accTokenInput');
+    const saveAccountBtn  = document.getElementById('saveAccountBtn');
 
-    async function loadTokenStatus() {
+    async function loadAccounts() {
         try {
-            const res = await fetch('/dsk/config');
+            const res = await fetch('/dsk/accounts');
             const data = await res.json();
-            updateTokenUI(data);
-            updateHeaderStatus(data.token_set);
+            renderAccounts(data.accounts || []);
+            updateHeaderStatus(data.accounts && data.accounts.some(a => a.active));
         } catch {
-            tokenStatusIcon.textContent = '⚠️';
-            tokenStatusText.textContent = 'فشل التحقق من التوكن';
+            accountsList.innerHTML = '<div class="accounts-empty">فشل تحميل الحسابات</div>';
         }
     }
 
-    function updateTokenUI(data) {
-        if (data.token_set) {
-            tokenStatusIcon.textContent = '✅';
-            tokenStatusText.textContent = 'التوكن مُضبوط';
-            tokenMasked.textContent = data.masked || '';
-            noTokenBanner.classList.add('hidden');
-        } else {
-            tokenStatusIcon.textContent = '❌';
-            tokenStatusText.textContent = 'التوكن غير مُضبوط';
-            tokenMasked.textContent = '';
+    function renderAccounts(accounts) {
+        if (!accounts.length) {
+            accountsList.innerHTML = '<div class="accounts-empty">لا توجد حسابات — أضف حسابك الأول</div>';
             noTokenBanner.classList.remove('hidden');
-        }
-    }
-
-    function updateHeaderStatus(tokenSet) {
-        if (tokenSet) {
-            statusDot.classList.add('active');
-            statusText.textContent = 'متصل';
-            modelDot.style.background = 'var(--success)';
-        } else {
-            statusDot.classList.remove('active');
-            statusText.textContent = 'لم يتم ضبط التوكن';
-            modelDot.style.background = 'var(--error)';
-        }
-    }
-
-    saveTokenBtn.addEventListener('click', async () => {
-        const token = tokenInput.value.trim();
-        if (!token) {
-            showTokenResult('يرجى إدخال التوكن أولاً', 'error');
+            updateHeaderStatus(false);
             return;
         }
-        saveTokenBtn.disabled = true;
-        saveTokenBtn.textContent = 'جارٍ الحفظ...';
-        hideTokenResult();
+
+        const hasActive = accounts.some(a => a.active);
+        updateHeaderStatus(hasActive);
+
+        accountsList.innerHTML = accounts.map(acc => `
+            <div class="account-item ${acc.active ? 'is-active' : ''}" id="acc-${acc.id}">
+                <span class="account-item-indicator"></span>
+                <div class="account-item-info">
+                    <div class="account-item-name">
+                        ${escapeHtml(acc.name)}
+                        ${acc.active ? '<span class="account-active-badge">نشط</span>' : ''}
+                    </div>
+                    <div class="account-item-masked">${escapeHtml(acc.masked)}</div>
+                </div>
+                <div class="account-item-actions">
+                    <button class="acc-activate-btn" onclick="activateAccount('${acc.id}', '${escapeHtml(acc.name)}')">تفعيل</button>
+                    <button class="acc-delete-btn" onclick="removeAccount('${acc.id}')" title="حذف">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    window.activateAccount = async function(id, name) {
         try {
-            const res = await fetch('/dsk/config', {
+            const res = await fetch(`/dsk/accounts/${id}/activate`, { method: 'POST' });
+            if (res.ok) {
+                showAccountsResult(`✅ تم تفعيل "${name}"`, 'success');
+                await loadAccounts();
+                sessionId = null;
+                sessionPromise = prefetchSession().catch(() => {});
+            } else {
+                showAccountsResult('❌ فشل تفعيل الحساب', 'error');
+            }
+        } catch {
+            showAccountsResult('❌ خطأ في الاتصال', 'error');
+        }
+    };
+
+    window.removeAccount = async function(id) {
+        if (!confirm('هل تريد حذف هذا الحساب؟')) return;
+        try {
+            const res = await fetch(`/dsk/accounts/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                showAccountsResult('🗑️ تم حذف الحساب', 'success');
+                await loadAccounts();
+                sessionId = null;
+            } else {
+                showAccountsResult('❌ فشل حذف الحساب', 'error');
+            }
+        } catch {
+            showAccountsResult('❌ خطأ في الاتصال', 'error');
+        }
+    };
+
+    saveAccountBtn.addEventListener('click', async () => {
+        const name  = accNameInput.value.trim() || 'حساب جديد';
+        const token = accTokenInput.value.trim();
+        if (!token) {
+            showAccountsResult('يرجى إدخال التوكن', 'error');
+            return;
+        }
+        saveAccountBtn.disabled = true;
+        saveAccountBtn.textContent = 'جارٍ الحفظ...';
+        try {
+            const res = await fetch('/dsk/accounts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ auth_token: token }),
+                body: JSON.stringify({ name, token }),
             });
             const data = await res.json();
             if (res.ok && data.ok) {
-                showTokenResult('✅ ' + data.message, 'success');
-                tokenInput.value = '';
-                await loadTokenStatus();
-                // Also reset session so next chat uses the new token
-                sessionId = null;
-                sessionPromise = prefetchSession();
+                showAccountsResult('✅ ' + data.message, 'success');
+                accNameInput.value = '';
+                accTokenInput.value = '';
+                addAccountForm.classList.add('hidden');
+                await loadAccounts();
+                if (data.active) {
+                    sessionId = null;
+                    sessionPromise = prefetchSession().catch(() => {});
+                }
             } else {
-                showTokenResult('❌ ' + (data.message || data.error || 'حدث خطأ'), 'error');
+                showAccountsResult('❌ ' + (data.error || 'حدث خطأ'), 'error');
             }
         } catch {
-            showTokenResult('❌ فشل الاتصال بالخادم', 'error');
+            showAccountsResult('❌ فشل الاتصال بالخادم', 'error');
         } finally {
-            saveTokenBtn.disabled = false;
-            saveTokenBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> حفظ التوكن`;
+            saveAccountBtn.disabled = false;
+            saveAccountBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> حفظ الحساب`;
         }
     });
 
-    deleteTokenBtn.addEventListener('click', async () => {
-        if (!confirm('هل تريد حذف التوكن؟ ستحتاج لإضافته مجدداً للتحدث مع DeepSeek.')) return;
-        try {
-            await fetch('/dsk/config', { method: 'DELETE' });
-            await loadTokenStatus();
-            showTokenResult('🗑️ تم حذف التوكن', 'success');
-            sessionId = null;
-        } catch {
-            showTokenResult('❌ فشل الحذف', 'error');
+    function showAccountsResult(msg, type) {
+        accountsResult.textContent = msg;
+        accountsResult.className = 'accounts-result ' + type;
+        accountsResult.classList.remove('hidden');
+        clearTimeout(showAccountsResult._t);
+        showAccountsResult._t = setTimeout(() => accountsResult.classList.add('hidden'), 4000);
+    }
+
+    window.toggleAddForm = function() {
+        addAccountForm.classList.toggle('hidden');
+        if (!addAccountForm.classList.contains('hidden')) {
+            accNameInput.focus();
         }
-    });
+    };
 
-    function showTokenResult(msg, type) {
-        tokenResult.textContent = msg;
-        tokenResult.className = 'token-result ' + type;
-        tokenResult.classList.remove('hidden');
-    }
-
-    function hideTokenResult() {
-        tokenResult.classList.add('hidden');
-    }
-
-    window.toggleTokenVisibility = function() {
-        const isPassword = tokenInput.type === 'password';
-        tokenInput.type = isPassword ? 'text' : 'password';
-        document.getElementById('eyeIcon').style.opacity = isPassword ? '0.4' : '1';
+    window.toggleAccTokenVisibility = function() {
+        const isPass = accTokenInput.type === 'password';
+        accTokenInput.type = isPass ? 'text' : 'password';
+        document.getElementById('accEyeIcon').style.opacity = isPass ? '0.4' : '1';
     };
 
     window.copyTokenHint = function() {
@@ -164,8 +199,22 @@
         if (tab) tab.classList.add('active');
         if (panel) panel.classList.remove('hidden');
         if (sidebar.classList.contains('collapsed')) sidebar.classList.remove('collapsed');
-        loadTokenStatus();
+        loadAccounts();
     };
+
+    function updateHeaderStatus(tokenSet) {
+        if (tokenSet) {
+            statusDot.classList.add('active');
+            statusText.textContent = 'متصل';
+            modelDot.style.background = 'var(--success)';
+            noTokenBanner.classList.add('hidden');
+        } else {
+            statusDot.classList.remove('active');
+            statusText.textContent = 'لا يوجد حساب نشط';
+            modelDot.style.background = 'var(--error)';
+            noTokenBanner.classList.remove('hidden');
+        }
+    }
 
     // ------------------------------------------------------------------ //
     // API Key management                                                   //
@@ -263,7 +312,7 @@
     // ------------------------------------------------------------------ //
     // Initialisation                                                       //
     // ------------------------------------------------------------------ //
-    loadTokenStatus();
+    loadAccounts();
     sessionPromise = prefetchSession().catch(() => {});
 
     // ------------------------------------------------------------------ //
@@ -313,7 +362,6 @@
             await (sessionPromise || prefetchSession());
             return !!sessionId;
         } catch {
-            // Try once more (token may have been set after initial load)
             try {
                 await prefetchSession();
                 return !!sessionId;
