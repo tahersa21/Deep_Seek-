@@ -30,3 +30,11 @@ NODE_ENV = "production"
 
 [services.production.health.startup]
 path = "/api/healthz"
+
+[[services]]
+localPort = 5000
+name = "DeepSeek4Free"
+paths = ["/"]
+
+[services.development]
+run = "cd /home/runner/workspace/extracted_project/deepseek4free && gunicorn --bind=0.0.0.0:5000 --workers=2 --timeout=120 app:app"
