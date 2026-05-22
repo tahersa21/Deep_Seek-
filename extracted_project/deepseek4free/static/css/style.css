@@ -21,7 +21,7 @@
     --error: #ef4444;
     --radius: 16px;
     --radius-sm: 10px;
-    --sidebar-w: 260px;
+    --sidebar-w: 300px;
     --font: 'Cairo', sans-serif;
     --font-mono: 'Fira Code', monospace;
 }
@@ -550,8 +550,8 @@ body {
 /* Sidebar tabs */
 .sidebar-tabs {
     display: flex;
-    gap: 4px;
-    padding: 10px 10px 0;
+    gap: 2px;
+    padding: 8px 8px 0;
     border-bottom: 1px solid var(--border);
 }
 
@@ -560,18 +560,20 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 8px 6px;
+    gap: 4px;
+    padding: 8px 2px;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
     color: var(--text-muted);
     font-family: var(--font);
-    font-size: 12.5px;
+    font-size: 11.5px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
     margin-bottom: -1px;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .sidebar-tab:hover { color: var(--text-secondary); }
