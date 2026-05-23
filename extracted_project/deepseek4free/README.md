@@ -1,208 +1,263 @@
 # DeepSeek4Free
 
-A Python package for interacting with the DeepSeek AI chat API. This package provides a clean interface to interact with DeepSeek's chat model, with support for streaming responses, thinking process visibility, and web search capabilities.
+بروكسي OpenAI-compatible يُوفّر وصولاً مجانياً لنماذج DeepSeek عبر reverse engineering،
+مع نظام إدارة حسابات متعدد، موازن حمل تلقائي بـ Auto-Failover، وواجهة لوحة تحكم عربية RTL.
 
-### Learn how to reverse engineer private api's !!
-- and reverse wasm like it was required here
-- [whop.com/reverser-academy](https://whop.com/reverser-academy/) (beta)
+---
 
+## ✨ المميزات
 
-> ⚠️ **Service Notice**: DeepSeek API is currently experiencing high load. Work is in progress to integrate additional API providers. Please expect intermittent errors.
+| الميزة | الوصف |
+|--------|-------|
+| 🔄 **OpenAI-compatible API** | `/v1/chat/completions` يعمل مع n8n، LangChain، وأي client يدعم OpenAI |
+| 👥 **Multi-Account** | إدارة حسابات DeepSeek متعددة من واجهة واحدة |
+| ⚖️ **Round-Robin Load Balancer** | توزيع الطلبات تلقائياً مع عزل الحسابات الفاشلة |
+| 🔁 **Auto-Failover** | عند فشل حساب ينتقل للتالي تلقائياً دون فشل الطلب |
+| 🔑 **API Key Auth** | مصادقة بمفاتيح قابلة للإضافة والحذف من الواجهة |
+| 🛠️ **Tool Calling** | دعم `tools` متوافق مع OpenAI عبر system prompt injection |
+| 🌙 **Arabic RTL Dashboard** | لوحة تحكم عربية dark theme بـ 4 تبويبات |
+| 🌊 **Streaming** | ردود فورية token-by-token عبر SSE |
 
-> 📝 **Note**: If you encounter any errors, please ensure you are using the latest version of this library. The DeepSeek API may change frequently, and updates are released to maintain compatibility.
+---
 
-## ✨ Features
+## 📦 التثبيت والتشغيل
 
-- 🔄 **Streaming Responses**: Real-time interaction with token-by-token output
-- 🤔 **Thinking Process**: Optional visibility into the model's reasoning steps
-- 🔍 **Web Search**: Optional integration for up-to-date information
-- 💬 **Session Management**: Persistent chat sessions with conversation history
-- ⚡ **Efficient PoW**: WebAssembly-based proof of work implementation
-- 🛡️ **Error Handling**: Comprehensive error handling with specific exceptions
-- ⏱️ **No Timeouts**: Designed for long-running conversations without timeouts
-- 🧵 **Thread Support**: Parent message tracking for threaded conversations
+### تشغيل محلي
 
-## 📦 Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/deepseek4free.git
-cd deepseek4free
-```
+git clone https://github.com/tahersa21/Deep_Seek-.git
+cd Deep_Seek-/extracted_project/deepseek4free
 
-2. Install dependencies:
-```bash
 pip install -r requirements.txt
+
+gunicorn --bind=0.0.0.0:5000 --workers=2 --timeout=120 app:app
 ```
 
-## 🔑 Authentication
+افتح المتصفح على `http://localhost:5000`
 
-To use this package, you need a DeepSeek auth token. Here's how to obtain it:
+### المتطلبات
 
-If you know how to use chrome devtools, simply run this snipped in the console:
+```
+Python 3.10+
+curl-cffi==0.8.1b9
+wasmtime
+numpy
+flask
+gunicorn
+python-dotenv
+nodriver      # مطلوب فقط لـ Cloudflare bypass
+drissionpage  # مطلوب فقط لـ Cloudflare bypass
+```
 
+---
+
+## 🔑 إعداد الحسابات
+
+### الحصول على التوكن من DeepSeek
+
+1. افتح [chat.deepseek.com](https://chat.deepseek.com) وسجّل الدخول
+2. افتح DevTools (F12) → تبويب **Application**
+3. في الشريط الجانبي: **Local Storage** → `https://chat.deepseek.com`
+4. ابحث عن مفتاح `userToken` وانسخ قيمة `"value"`
+
+أو عبر Console:
 ```js
 JSON.parse(localStorage.getItem("userToken")).value
 ```
 
-### Method 1: From LocalStorage (Recommended)
+### إضافة الحسابات
 
-<img width="1150" alt="image" src="https://github.com/user-attachments/assets/b4e11650-3d1b-4638-956a-c67889a9f37e" />
+من لوحة التحكم → تبويب **حسابات** → أدخل التوكن وانقر إضافة.
 
-1. Visit [chat.deepseek.com](https://chat.deepseek.com)
-2. Log in to your account
-3. Open browser developer tools (F12 or right-click > Inspect)
-4. Go to Application tab (if not visible, click >> to see more tabs)
-5. In the left sidebar, expand "Local Storage"
-6. Click on "https://chat.deepseek.com"
-7. Find the key named `userToken`
-8. Copy `"value"` - this is your authentication token
-
-### Method 2: From Network Tab
-
-Alternatively, you can get the token from network requests:
-
-1. Visit [chat.deepseek.com](https://chat.deepseek.com)
-2. Log in to your account
-3. Open browser developer tools (F12)
-4. Go to Network tab
-5. Make any request in the chat
-6. Find the request headers
-7. Copy the `authorization` token (without 'Bearer ' prefix)
-
-### Handling Cloudflare Challenges
-
-If you encounter Cloudflare challenges ("Just a moment..." page), you'll need to get a `cf_clearance` cookie. Run this command:
-
-```bash
-python -m dsk.bypass
+أو مباشرةً في `config.json`:
+```json
+{
+  "accounts": [
+    { "id": "acc1", "token": "YOUR_TOKEN_HERE", "proxy": null }
+  ]
+}
 ```
 
-This will:
-1. Open an undetected browser
-2. Visit DeepSeek and solve the Cloudflare challenge
-3. Capture and save the `cf_clearance` cookie
-4. The cookie will be automatically used in future requests
+---
 
-You only need to run this when:
-- You get Cloudflare challenges in your requests
-- Your existing cf_clearance cookie expires
-- You see the error "Please wait a few minutes before trying again"
+## 🔌 استخدام الـ API
 
-The captured cookie will be stored in `dsk/cookies.json` and automatically used by the API.
-
-## 📚 Usage
-
-### Basic Example
+### مثال أساسي
 
 ```python
-from dsk.api import DeepSeekAPI
+import openai
 
-# Initialize with your auth token
-api = DeepSeekAPI("YOUR_AUTH_TOKEN")
-
-# Create a new chat session
-chat_id = api.create_chat_session()
-
-# Simple chat completion
-prompt = "What is Python?"
-for chunk in api.chat_completion(chat_id, prompt):
-    if chunk['type'] == 'text':
-        print(chunk['content'], end='', flush=True)
-```
-
-### Advanced Features
-
-#### Thinking Process Visibility
-
-The thinking process shows the model's reasoning steps:
-
-```python
-# With thinking process enabled
-for chunk in api.chat_completion(
-    chat_id,
-    "Explain quantum computing",
-    thinking_enabled=True
-):
-    if chunk['type'] == 'thinking':
-        print(f"🤔 Thinking: {chunk['content']}")
-    elif chunk['type'] == 'text':
-        print(chunk['content'], end='', flush=True)
-```
-
-#### Web Search Integration
-
-Enable web search for up-to-date information:
-
-```python
-# With web search enabled
-for chunk in api.chat_completion(
-    chat_id,
-    "What are the latest developments in AI?",
-    thinking_enabled=True,
-    search_enabled=True
-):
-    if chunk['type'] == 'thinking':
-        print(f"🔍 Searching: {chunk['content']}")
-    elif chunk['type'] == 'text':
-        print(chunk['content'], end='', flush=True)
-```
-
-#### Threaded Conversations
-
-Create threaded conversations by tracking parent messages:
-
-```python
-# Start a conversation
-chat_id = api.create_chat_session()
-
-# Send initial message
-parent_id = None
-for chunk in api.chat_completion(chat_id, "Tell me about neural networks"):
-    if chunk['type'] == 'text':
-        print(chunk['content'], end='', flush=True)
-    elif 'message_id' in chunk:
-        parent_id = chunk['message_id']
-
-# Send follow-up question in the thread
-for chunk in api.chat_completion(
-    chat_id,
-    "How do they compare to other ML models?",
-    parent_message_id=parent_id
-):
-    if chunk['type'] == 'text':
-        print(chunk['content'], end='', flush=True)
-```
-
-### Error Handling
-
-The package provides specific exceptions for different error scenarios:
-
-```python
-from dsk.api import (
-    DeepSeekAPI, 
-    AuthenticationError,
-    RateLimitError,
-    NetworkError,
-    CloudflareError,
-    APIError
+client = openai.OpenAI(
+    base_url="http://localhost:5000/v1",
+    api_key="your-api-key"          # من تبويب مفاتيح API
 )
 
-try:
-    api = DeepSeekAPI("YOUR_AUTH_TOKEN")
-    chat_id = api.create_chat_session()
-    
-    for chunk in api.chat_completion(chat_id, "Your prompt here"):
-        if chunk['type'] == 'text':
-            print(chunk['content'], end='', flush=True)
-            
-except AuthenticationError:
-    print("Authentication failed. Please check your token.")
-except RateLimitError:
-    print("Rate limit exceeded. Please wait before making more requests.")
-except CloudflareError as e:
-    print(f"Cloudflare protection encountered: {str(e)}")
-except NetworkError:
-    print("Network error occurred. Check your internet connection.")
-except APIError as e:
-    print(f"API error occurred: {str(e)}")
+response = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=[{"role": "user", "content": "مرحبا!"}]
+)
+print(response.choices[0].message.content)
+```
+
+### Streaming
+
+```python
+stream = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=[{"role": "user", "content": "اشرح الذكاء الاصطناعي"}],
+    stream=True
+)
+for chunk in stream:
+    print(chunk.choices[0].delta.content or "", end="")
+```
+
+### Tool Calling (n8n AI Agent)
+
+```json
+{
+  "model": "deepseek-chat",
+  "messages": [{"role": "user", "content": "ما الطقس في الرياض؟"}],
+  "tools": [{
+    "type": "function",
+    "function": {
+      "name": "get_weather",
+      "description": "الحصول على الطقس",
+      "parameters": {
+        "type": "object",
+        "properties": { "city": {"type": "string"} },
+        "required": ["city"]
+      }
+    }
+  }]
+}
+```
+
+---
+
+## ⚖️ موازن الحمل والـ Failover
+
+```
+طلب جديد
+    ↓
+[حساب A] → فشل؟ → عزل 5 دقائق → [حساب B] → فشل؟ → [حساب C] → نجاح ✓
+                                                          ↓
+                                      (كل الحسابات فشلت → خطأ للعميل)
+```
+
+- **Auto-Recovery**: الحساب المعزول يعود تلقائياً بعد 5 دقائق
+- **Last Resort**: إذا عُزلت جميع الحسابات تُعاد جميعها دفعةً واحدة
+- **فحص الحالة**: `GET /dsk/balancer`
+- **إعادة تعيين حساب**: `POST /dsk/balancer/{id}/reset`
+
+---
+
+## ☁️ النشر على Google Cloud
+
+### متطلبات ما قبل النشر
+
+```bash
+# تثبيت Chrome (مطلوب لـ Cloudflare bypass فقط)
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo apt install -y ./google-chrome-stable_current_amd64.deb
+
+# تأكد من المسار
+which google-chrome  # يجب أن يكون /usr/bin/google-chrome
+```
+
+### الخيار 1: Google Compute Engine VM (موصى به)
+
+```bash
+# إنشاء VM
+gcloud compute instances create deepseek4free \
+  --machine-type=e2-small \
+  --image-family=debian-12 \
+  --image-project=debian-cloud \
+  --tags=http-server
+
+# فتح المنفذ 80
+gcloud compute firewall-rules create allow-http \
+  --allow=tcp:80 \
+  --target-tags=http-server
+
+# على الـ VM بعد SSH
+sudo apt update && sudo apt install -y python3-pip python3-venv
+git clone https://github.com/tahersa21/Deep_Seek-.git
+cd Deep_Seek-/extracted_project/deepseek4free
+pip install -r requirements.txt
+gunicorn --bind=0.0.0.0:80 --workers=4 --timeout=120 app:app
+```
+
+> **لماذا GCE وليس Cloud Run؟**
+> التطبيق يخزّن الإعدادات في `config.json` و `api_keys.json` على القرص.
+> Cloud Run stateless يمسح الملفات عند كل restart.
+> **GCE VM يحتفظ بالبيانات** دائماً.
+
+### الخيار 2: Cloud Run (مع تعديل)
+
+لاستخدام Cloud Run تحتاج نقل التخزين لـ Cloud Storage أو Firestore بدلاً من JSON files.
+غير موصى به دون تعديل الكود.
+
+### متغيرات البيئة (اختيارية)
+
+```bash
+export PORT=8080                    # المنفذ (الافتراضي: يُمرَّر لـ gunicorn)
+export SECRET_KEY="your-secret"     # للـ sessions
+```
+
+### Systemd Service (تشغيل تلقائي)
+
+```ini
+# /etc/systemd/system/deepseek4free.service
+[Unit]
+Description=DeepSeek4Free
+After=network.target
+
+[Service]
+WorkingDirectory=/home/user/Deep_Seek-/extracted_project/deepseek4free
+ExecStart=/usr/local/bin/gunicorn --bind=0.0.0.0:80 --workers=4 --timeout=120 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable deepseek4free
+sudo systemctl start deepseek4free
+```
+
+---
+
+## ⚠️ مشاكل Google Cloud المعروفة
+
+| المشكلة | السبب | الحل |
+|---------|-------|------|
+| خطأ `nodriver` | Chrome غير مثبّت | `apt install google-chrome-stable` |
+| مسار Chrome خاطئ | `dsk/server.py` يفترض `/usr/bin/google-chrome` | تثبيت Chrome في نفس المسار |
+| فقدان الإعدادات بعد restart | Cloud Run stateless | استخدم GCE VM |
+| `wasmtime` لا يعمل | معمارية CPU غير مدعومة | استخدم `x86_64` وليس `arm` |
+
+---
+
+## 📡 نقاط النهاية الكاملة
+
+| Method | Path | الوصف |
+|--------|------|-------|
+| `GET` | `/` | لوحة التحكم (HTML) |
+| `GET` | `/healthz` | فحص صحة الخادم |
+| `POST` | `/v1/chat/completions` | OpenAI-compatible chat |
+| `GET` | `/dsk/accounts` | قائمة الحسابات |
+| `POST` | `/dsk/accounts` | إضافة حساب |
+| `DELETE` | `/dsk/accounts/{id}` | حذف حساب |
+| `GET` | `/dsk/balancer` | حالة موازن الحمل |
+| `POST` | `/dsk/balancer/{id}/reset` | إعادة تعيين حساب |
+| `POST` | `/dsk/balancer/reset-all` | إعادة تعيين الكل |
+| `GET` | `/dsk/keys` | قائمة مفاتيح API |
+| `POST` | `/dsk/keys` | إنشاء مفتاح |
+| `DELETE` | `/dsk/keys/{key}` | حذف مفتاح |
+
+---
+
+## 📄 الترخيص
+
+MIT License — انظر ملف `LICENSE`
