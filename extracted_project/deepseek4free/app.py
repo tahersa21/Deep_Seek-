@@ -765,6 +765,11 @@ def balancer_reset_all():
 # Chat routes                                                                  #
 # --------------------------------------------------------------------------- #
 
+@app.route("/healthz")
+def healthz():
+    return {"status": "ok"}, 200
+
+
 @app.route("/")
 def index():
     return render_template("index.html")

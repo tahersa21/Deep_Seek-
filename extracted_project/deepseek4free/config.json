@@ -1,4 +1,12 @@
 {
-  "accounts": [],
-  "active_id": null
+  "accounts": [
+    {
+      "id": "31410614b24be281",
+      "name": "account",
+      "token": "xr1gLOw5PxiZ/rPEPNkKPaj2RMk0HW2lNJIw6pyYBQux31mfXShwmR4rlqfA3lV0",
+      "created_at": 1779495777,
+      "proxy": null
+    }
+  ],
+  "active_id": "31410614b24be281"
 }

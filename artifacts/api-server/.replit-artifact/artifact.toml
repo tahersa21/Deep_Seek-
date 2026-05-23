@@ -1,6 +1,6 @@
 kind = "api"
-previewPath = "/api" # TODO - should be excluded from preview in the first place
-title = "API Server"
+previewPath = "/"
+title = "DeepSeek4Free"
 version = "1.0.0"
 id = "3B4_FFSkEVBkAeYMFRJ2e"
 
@@ -21,7 +21,6 @@ args = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
 NODE_ENV = "production"
 
 [services.production.run]
-# we don't run through pnpm to make startup faster in production
 args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 
 [services.production.run.env]
@@ -38,3 +37,14 @@ paths = ["/"]
 
 [services.development]
 run = "cd /home/runner/workspace/extracted_project/deepseek4free && gunicorn --bind=0.0.0.0:5000 --workers=2 --timeout=120 app:app"
+
+[services.production]
+
+[services.production.run]
+args = ["sh", "-c", "cd /home/runner/workspace/extracted_project/deepseek4free && gunicorn --bind=0.0.0.0:5000 --workers=4 --timeout=120 app:app"]
+
+[services.production.run.env]
+PORT = "5000"
+
+[services.production.health.startup]
+path = "/healthz"
