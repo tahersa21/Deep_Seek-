@@ -144,8 +144,8 @@ class AccountRotator:
 
     # ---------------------------------------------------------------------- #
 
-    def get_next(self) -> tuple["DeepSeekAPI", str]:
-        """Pick the next healthy account (round-robin) and return (api, acc_id)."""
+    def get_next(self, exclude: set | None = None) -> tuple["DeepSeekAPI", str]:
+        """Pick the next healthy account (round-robin), optionally excluding already-tried IDs."""
         with self._lock:
             accounts = _load_config().get("accounts", [])
             if not accounts:
@@ -164,6 +164,13 @@ class AccountRotator:
                     reset_api(acc["id"])
                 healthy = accounts
 
+            # Filter out already-tried accounts when retrying
+            if exclude:
+                candidates = [a for a in healthy if a["id"] not in exclude]
+                if not candidates:
+                    raise AuthenticationError("جميع الحسابات المتاحة فشلت في هذا الطلب")
+                healthy = candidates
+
             # Clamp index then advance
             self._index = self._index % len(healthy)
             acc = healthy[self._index]
@@ -176,6 +183,13 @@ class AccountRotator:
                 _api_instances[acc_id] = DeepSeekAPI(acc["token"], proxy=acc.get("proxy"))
 
             return _api_instances[acc_id], acc_id
+
+    def healthy_count(self) -> int:
+        """Return the number of currently healthy accounts."""
+        with self._lock:
+            accounts = _load_config().get("accounts", [])
+            self._maybe_recover(accounts)
+            return sum(1 for a in accounts if self._health.get(a["id"], {}).get("healthy", True))
 
     def mark_success(self, acc_id: str) -> None:
         with self._lock:
@@ -628,26 +642,55 @@ def openai_chat():
     completion_id = "chatcmpl-" + secrets.token_hex(12)
     created       = int(time.time())
 
-    # ── Pick next account via round-robin ────────────────────────────────── #
-    try:
-        api, acc_id = rotator.get_next()
-        session_id  = api.create_chat_session()
-    except Exception as e:
-        return {"error": {"message": str(e), "type": "server_error"}}, 500
+    # ── Helper: try one account, return (session_id, api, acc_id) or raise ── #
+    def _try_get_session(exclude: set) -> tuple:
+        api_, acc_id_ = rotator.get_next(exclude=exclude)
+        session_id_   = api_.create_chat_session()
+        return session_id_, api_, acc_id_
+
+    # ── Pick account with auto-failover on session creation errors ─────────── #
+    MAX_RETRIES = max(1, rotator.healthy_count())
+    tried_ids: set = set()
+    api = session_id = acc_id = None
+    last_error: str = ""
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            session_id, api, acc_id = _try_get_session(tried_ids)
+            break
+        except AuthenticationError:
+            raise
+        except Exception as e:
+            last_error = str(e)
+            if acc_id:
+                rotator.mark_failure(acc_id, last_error)
+                tried_ids.add(acc_id)
+            acc_id = None
+    else:
+        return {"error": {"message": f"جميع الحسابات فشلت في إنشاء الجلسة: {last_error}", "type": "server_error"}}, 500
 
     # ── When tools are requested: always collect full response first ──────── #
     # (We need the full text to detect whether it's a tool call or plain text)
     if tools:
-        full_text = ""
-        try:
-            for chunk in api.chat_completion(session_id, prompt, thinking_enabled=False):
-                if chunk.get("type") == "text":
-                    full_text += chunk.get("content", "")
-            rotator.mark_success(acc_id)
-        except Exception as e:
-            if _is_fatal_error(e):
-                rotator.mark_failure(acc_id, str(e))
-            return {"error": {"message": str(e), "type": "server_error"}}, 500
+        for attempt in range(MAX_RETRIES):
+            full_text = ""
+            try:
+                for chunk in api.chat_completion(session_id, prompt, thinking_enabled=False):
+                    if chunk.get("type") == "text":
+                        full_text += chunk.get("content", "")
+                rotator.mark_success(acc_id)
+                break
+            except Exception as e:
+                if _is_fatal_error(e):
+                    rotator.mark_failure(acc_id, str(e))
+                tried_ids.add(acc_id)
+                # Try next account
+                try:
+                    session_id, api, acc_id = _try_get_session(tried_ids)
+                except Exception as retry_e:
+                    return {"error": {"message": str(retry_e), "type": "server_error"}}, 500
+        else:
+            return {"error": {"message": "جميع الحسابات فشلت في تنفيذ الطلب", "type": "server_error"}}, 500
 
         tool_call = _extract_tool_call(full_text)
 
@@ -682,6 +725,8 @@ def openai_chat():
 
     # ── No tools: normal streaming / non-streaming path ───────────────────── #
     if stream:
+        # Streaming: failover only possible before bytes are sent.
+        # The session is already established above; stream from it directly.
         def generate_stream():
             try:
                 for chunk in api.chat_completion(session_id, prompt, thinking_enabled=thinking_enabled):
@@ -720,16 +765,25 @@ def openai_chat():
         )
 
     else:
-        full_text = ""
-        try:
-            for chunk in api.chat_completion(session_id, prompt, thinking_enabled=thinking_enabled):
-                if chunk.get("type") == "text":
-                    full_text += chunk.get("content", "")
-            rotator.mark_success(acc_id)
-        except Exception as e:
-            if _is_fatal_error(e):
-                rotator.mark_failure(acc_id, str(e))
-            return {"error": {"message": str(e), "type": "server_error"}}, 500
+        # Non-streaming: full failover loop across all healthy accounts
+        for attempt in range(MAX_RETRIES):
+            full_text = ""
+            try:
+                for chunk in api.chat_completion(session_id, prompt, thinking_enabled=thinking_enabled):
+                    if chunk.get("type") == "text":
+                        full_text += chunk.get("content", "")
+                rotator.mark_success(acc_id)
+                break
+            except Exception as e:
+                if _is_fatal_error(e):
+                    rotator.mark_failure(acc_id, str(e))
+                tried_ids.add(acc_id)
+                try:
+                    session_id, api, acc_id = _try_get_session(tried_ids)
+                except Exception as retry_e:
+                    return {"error": {"message": str(retry_e), "type": "server_error"}}, 500
+        else:
+            return {"error": {"message": "جميع الحسابات فشلت في تنفيذ الطلب", "type": "server_error"}}, 500
 
         return {
             "id": completion_id, "object": "chat.completion", "created": created, "model": model,
