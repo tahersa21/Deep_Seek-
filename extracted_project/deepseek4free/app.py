@@ -469,15 +469,135 @@ def delete_key(kid):
 def _messages_to_prompt(messages: list) -> str:
     parts = []
     for msg in messages:
-        role = msg.get("role", "user")
-        content = msg.get("content", "")
+        role    = msg.get("role", "user")
+        content = msg.get("content") or ""
+        # Handle list-type content (some clients send [{"type":"text","text":"..."}])
+        if isinstance(content, list):
+            content = " ".join(
+                p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
+            )
         if role == "system":
             parts.append(f"[تعليمات النظام]: {content}")
         elif role == "assistant":
-            parts.append(f"[المساعد]: {content}")
+            # If previous message was a tool_call, include it
+            tool_calls = msg.get("tool_calls")
+            if tool_calls:
+                parts.append(f"[المساعد استدعى أداة]: {json.dumps(tool_calls, ensure_ascii=False)}")
+            else:
+                parts.append(f"[المساعد]: {content}")
+        elif role == "tool":
+            parts.append(f"[نتيجة الأداة ({msg.get('name','')})]: {content}")
         else:
             parts.append(f"[المستخدم]: {content}")
     return "\n\n".join(parts)
+
+
+# ── Tool-calling helpers ─────────────────────────────────────────────────── #
+
+_TOOL_CALL_INSTRUCTION = """
+===== TOOL USE PROTOCOL =====
+You have access to the following tools. When you decide to call a tool, you MUST respond with ONLY a raw JSON object — no markdown, no explanation, no extra text. The JSON must follow this exact structure:
+{"tool_call":{"name":"<tool_name>","arguments":{...}}}
+
+If you do NOT need to call a tool, respond normally with plain text.
+
+Available tools:
+{tools_json}
+===== END TOOL USE PROTOCOL =====
+"""
+
+def _inject_tools(messages: list, tools: list) -> list:
+    """Prepend tool definitions to the system prompt (or create one)."""
+    tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
+    instruction = _TOOL_CALL_INSTRUCTION.format(tools_json=tools_json)
+    msgs = list(messages)
+    if msgs and msgs[0].get("role") == "system":
+        msgs[0] = {**msgs[0], "content": instruction + "\n\n" + (msgs[0].get("content") or "")}
+    else:
+        msgs.insert(0, {"role": "system", "content": instruction})
+    return msgs
+
+
+import re as _re
+
+def _extract_tool_call(text: str) -> dict | None:
+    """
+    Try to find a tool_call JSON object in model output.
+    Returns the parsed tool_call dict or None if not found.
+    """
+    # First: try direct JSON parse
+    stripped = text.strip()
+    if stripped.startswith("{"):
+        try:
+            obj = json.loads(stripped)
+            if "tool_call" in obj:
+                return obj["tool_call"]
+        except json.JSONDecodeError:
+            pass
+
+    # Second: regex search for the pattern anywhere in text
+    match = _re.search(r'\{\s*"tool_call"\s*:\s*\{.*?\}\s*\}', stripped, _re.DOTALL)
+    if match:
+        try:
+            obj = json.loads(match.group())
+            return obj.get("tool_call")
+        except json.JSONDecodeError:
+            pass
+
+    # Third: try to find just {"name":..., "arguments":...} pattern
+    match2 = _re.search(r'\{\s*"name"\s*:\s*"([^"]+)"\s*,\s*"arguments"\s*:\s*(\{.*?\})\s*\}', stripped, _re.DOTALL)
+    if match2:
+        try:
+            args = json.loads(match2.group(2))
+            return {"name": match2.group(1), "arguments": args}
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
+
+def _build_tool_call_response(tool_call: dict, completion_id: str, created: int, model: str) -> dict:
+    """Format a tool_call dict into a proper OpenAI tool_calls response."""
+    call_id = "call_" + secrets.token_hex(12)
+    name    = tool_call.get("name", "")
+    args    = tool_call.get("arguments", {})
+    args_str = json.dumps(args, ensure_ascii=False) if isinstance(args, dict) else str(args)
+    return {
+        "id": completion_id,
+        "object": "chat.completion",
+        "created": created,
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": name, "arguments": args_str},
+                }],
+            },
+            "finish_reason": "tool_calls",
+        }],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    }
+
+
+def _build_tool_call_stream_chunks(tool_call: dict, completion_id: str, created: int, model: str):
+    """Yield SSE chunks for a tool_call response (streaming mode)."""
+    call_id  = "call_" + secrets.token_hex(12)
+    name     = tool_call.get("name", "")
+    args     = tool_call.get("arguments", {})
+    args_str = json.dumps(args, ensure_ascii=False) if isinstance(args, dict) else str(args)
+
+    # First chunk: role + tool_call start
+    yield f"data: {json.dumps({'id':completion_id,'object':'chat.completion.chunk','created':created,'model':model,'choices':[{'index':0,'delta':{'role':'assistant','content':None,'tool_calls':[{'index':0,'id':call_id,'type':'function','function':{'name':name,'arguments':''}}]},'finish_reason':None}]})}\n\n"
+    # Second chunk: arguments
+    yield f"data: {json.dumps({'id':completion_id,'object':'chat.completion.chunk','created':created,'model':model,'choices':[{'index':0,'delta':{'tool_calls':[{'index':0,'function':{'arguments':args_str}}]},'finish_reason':None}]})}\n\n"
+    # Final chunk
+    yield f"data: {json.dumps({'id':completion_id,'object':'chat.completion.chunk','created':created,'model':model,'choices':[{'index':0,'delta':{},'finish_reason':'tool_calls'}]})}\n\n"
+    yield "data: [DONE]\n\n"
 
 
 def _is_fatal_error(exc: Exception) -> bool:
@@ -491,18 +611,22 @@ def openai_chat():
     if not ok:
         return {"error": {"message": info, "type": "invalid_request_error"}}, 401
 
-    data = request.json or {}
+    data     = request.json or {}
     messages = data.get("messages", [])
-    stream = bool(data.get("stream", False))
-    model = data.get("model", "deepseek-chat")
+    stream   = bool(data.get("stream", False))
+    model    = data.get("model", "deepseek-chat")
+    tools    = data.get("tools") or []          # list of OpenAI tool defs
     thinking_enabled = "reason" in model.lower() or data.get("thinking_enabled", False)
 
     if not messages:
         return {"error": {"message": "messages is required", "type": "invalid_request_error"}}, 400
 
-    prompt = _messages_to_prompt(messages)
+    # Inject tool definitions into the prompt when tools are provided
+    effective_messages = _inject_tools(messages, tools) if tools else messages
+    prompt = _messages_to_prompt(effective_messages)
+
     completion_id = "chatcmpl-" + secrets.token_hex(12)
-    created = int(time.time())
+    created       = int(time.time())
 
     # ── Pick next account via round-robin ────────────────────────────────── #
     try:
@@ -511,37 +635,72 @@ def openai_chat():
     except Exception as e:
         return {"error": {"message": str(e), "type": "server_error"}}, 500
 
+    # ── When tools are requested: always collect full response first ──────── #
+    # (We need the full text to detect whether it's a tool call or plain text)
+    if tools:
+        full_text = ""
+        try:
+            for chunk in api.chat_completion(session_id, prompt, thinking_enabled=False):
+                if chunk.get("type") == "text":
+                    full_text += chunk.get("content", "")
+            rotator.mark_success(acc_id)
+        except Exception as e:
+            if _is_fatal_error(e):
+                rotator.mark_failure(acc_id, str(e))
+            return {"error": {"message": str(e), "type": "server_error"}}, 500
+
+        tool_call = _extract_tool_call(full_text)
+
+        if tool_call:
+            resp = _build_tool_call_response(tool_call, completion_id, created, model)
+            if stream:
+                def _stream_tool():
+                    yield from _build_tool_call_stream_chunks(tool_call, completion_id, created, model)
+                return Response(stream_with_context(_stream_tool()), mimetype="text/event-stream",
+                                headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no","Connection":"keep-alive"})
+            return resp
+
+        # Plain text reply (model chose not to call a tool)
+        if stream:
+            def _stream_text():
+                for word in full_text:          # character-by-character for smooth streaming
+                    payload = {"id":completion_id,"object":"chat.completion.chunk","created":created,
+                               "model":model,"choices":[{"index":0,"delta":{"content":word},"finish_reason":None}]}
+                    yield f"data: {json.dumps(payload)}\n\n"
+                finish = {"id":completion_id,"object":"chat.completion.chunk","created":created,
+                          "model":model,"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+                yield f"data: {json.dumps(finish)}\n\n"
+                yield "data: [DONE]\n\n"
+            return Response(stream_with_context(_stream_text()), mimetype="text/event-stream",
+                            headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no","Connection":"keep-alive"})
+
+        return {
+            "id": completion_id, "object": "chat.completion", "created": created, "model": model,
+            "choices": [{"index":0,"message":{"role":"assistant","content":full_text},"finish_reason":"stop"}],
+            "usage": {"prompt_tokens":0,"completion_tokens":0,"total_tokens":0},
+        }
+
+    # ── No tools: normal streaming / non-streaming path ───────────────────── #
     if stream:
         def generate_stream():
             try:
-                for chunk in api.chat_completion(
-                    session_id, prompt,
-                    thinking_enabled=thinking_enabled,
-                ):
+                for chunk in api.chat_completion(session_id, prompt, thinking_enabled=thinking_enabled):
                     if chunk.get("type") != "text":
                         continue
                     content = chunk.get("content", "")
                     if not content:
                         continue
                     payload = {
-                        "id": completion_id,
-                        "object": "chat.completion.chunk",
-                        "created": created,
-                        "model": model,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {"content": content},
-                            "finish_reason": None,
-                        }],
+                        "id": completion_id, "object": "chat.completion.chunk",
+                        "created": created, "model": model,
+                        "choices": [{"index":0,"delta":{"content":content},"finish_reason":None}],
                     }
                     yield f"data: {json.dumps(payload)}\n\n"
 
                 finish_payload = {
-                    "id": completion_id,
-                    "object": "chat.completion.chunk",
-                    "created": created,
-                    "model": model,
-                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                    "id": completion_id, "object": "chat.completion.chunk",
+                    "created": created, "model": model,
+                    "choices": [{"index":0,"delta":{},"finish_reason":"stop"}],
                 }
                 yield f"data: {json.dumps(finish_payload)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -573,12 +732,9 @@ def openai_chat():
             return {"error": {"message": str(e), "type": "server_error"}}, 500
 
         return {
-            "id": completion_id,
-            "object": "chat.completion",
-            "created": created,
-            "model": model,
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": full_text}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "id": completion_id, "object": "chat.completion", "created": created, "model": model,
+            "choices": [{"index":0,"message":{"role":"assistant","content":full_text},"finish_reason":"stop"}],
+            "usage": {"prompt_tokens":0,"completion_tokens":0,"total_tokens":0},
         }
 
 
