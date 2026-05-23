@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "DeepSeek4Free"
+version = "1.0.0"
+id = "artifacts/deepseek4free"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19802
+
+[services.development]
+run = "cd /home/runner/workspace/extracted_project/deepseek4free && gunicorn --bind=0.0.0.0:19802 --workers=2 --timeout=120 app:app"
+
+[services.production.run]
+args = ["gunicorn", "--chdir=/home/runner/workspace/extracted_project/deepseek4free", "--bind=0.0.0.0:19802", "--workers=4", "--timeout=120", "app:app"]
+
+[services.production.health.startup]
+path = "/healthz"
+
+[services.env]
+PORT = "19802"
+BASE_PATH = "/"

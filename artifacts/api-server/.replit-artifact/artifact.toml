@@ -1,6 +1,6 @@
 kind = "api"
-previewPath = "/"
-title = "DeepSeek4Free"
+previewPath = "/api"
+title = "API Server"
 version = "1.0.0"
 id = "3B4_FFSkEVBkAeYMFRJ2e"
 
@@ -29,22 +29,3 @@ NODE_ENV = "production"
 
 [services.production.health.startup]
 path = "/api/healthz"
-
-[[services]]
-localPort = 5000
-name = "DeepSeek4Free"
-paths = ["/"]
-
-[services.development]
-run = "cd /home/runner/workspace/extracted_project/deepseek4free && gunicorn --bind=0.0.0.0:5000 --workers=2 --timeout=120 app:app"
-
-[services.production]
-
-[services.production.run]
-args = ["sh", "-c", "cd /home/runner/workspace/extracted_project/deepseek4free && gunicorn --bind=0.0.0.0:5000 --workers=4 --timeout=120 app:app"]
-
-[services.production.run.env]
-PORT = "5000"
-
-[services.production.health.startup]
-path = "/healthz"
